@@ -63,11 +63,8 @@ if goldnugget > 0 then
 end
 
 casket = Recipe("casket", ingredient_casket, RECIPETABS.MAGIC, tier, nil, 1)
-
-
 casket.atlas = "images/inventoryimages/casket.xml"
 
---TheInput:ControllerAttached()
 
 local function Casket_inventory(inst)
 
@@ -88,9 +85,8 @@ local function Casket_inventory(inst)
 	        foundItem = self.activeitem
 	    end
 	    
-	    if self.overflow then
-			foundItem = self.overflow.components.container:FindItem(fn)
-	    end
+	    local overflow = self:GetOverflowContainer()
+		foundItem = overflow ~= nil and overflow:FindItem(fn) or nil
 
 	    if not foundItem and self.casket then
 			foundItem = self.casket.components.container:FindItem(fn)
@@ -112,29 +108,22 @@ local function Casket_inventory(inst)
 	        table.insert(items, self.activeitem)
 	    end
 	    
-	    local overflow_items = {}
 
-	    if self.overflow then
-	        overflow_items = self.overflow.components.container:FindItems(fn)
-	    end
+	    local overflow = self:GetOverflowContainer()
+		if overflow ~= nil then
+			for k, v in pairs(overflow:FindItems(fn)) do
+				table.insert(items, v)
+			end
+		end
 
-	    if #overflow_items > 0 then
-	        for k,v in pairs(overflow_items) do
-	            table.insert(items, v)
-	        end
-	    end
-
-	    local casket_items = {}
-
-	    if self.casket then
-	        casket_items = self.casket.components.container:FindItems(fn)
-	    end
-
-	    if #casket_items > 0 then
-	        for k,v in pairs(casket_items) do
-	            table.insert(items, v)
-	        end
-	    end
+		if self.casket then
+			local casket_items = self.casket:GetOverflowContainer()
+			if casket_items ~= nil then
+				for k, v in pairs(casket_items:FindItems(fn)) do
+					table.insert(items, v)
+				end
+			end
+		end
 
 	    return items
 	end
@@ -399,7 +388,8 @@ local function Casket_inventory(inst)
 
 	local function HasOverwrite(self, item, amount)
 		oldreturn1, returnamount = OldHasFunction(self, item, amount)
-
+GLOBAL.TheNet:SystemMessage('HasOverwrite', false)
+GLOBAL.TheNet:SystemMessage(self.casket, false)
 	    if self.casket then
 	    	local casket_enough, casket_found = self.casket.components.container:Has(item, amount)
 			returnamount = returnamount + casket_found
@@ -408,75 +398,69 @@ local function Casket_inventory(inst)
 	    return returnamount >= amount, returnamount
 	end
 
-	if not GLOBAL.IsDLCEnabled(GLOBAL.REIGN_OF_GIANTS) then
-		local function ConsumeByNameOverwrite ( self, item, amount )
+	
+	local function ConsumeByNameOverwrite ( self, item, amount )
 			
-			local total_num_found = 0
-			
-			local function tryconsume(v)
-				local num_found = 0
-				if v and v.prefab == item then
-					local num_left_to_find = amount - total_num_found
-					
-					if v.components.stackable then
-						if v.components.stackable.stacksize > num_left_to_find then
-							v.components.stackable:SetStackSize(v.components.stackable.stacksize - num_left_to_find)
-							num_found = amount
-						else
-							num_found = num_found + v.components.stackable.stacksize
-							self:RemoveItem(v, true):Remove()
-						end
+		local total_num_found = 0
+		
+		local function tryconsume(v)
+			local num_found = 0
+			if v and v.prefab == item then
+				local num_left_to_find = amount - total_num_found
+				
+				if v.components.stackable then
+					if v.components.stackable.stacksize > num_left_to_find then
+						v.components.stackable:SetStackSize(v.components.stackable.stacksize - num_left_to_find)
+						num_found = amount
 					else
-						num_found = num_found + 1
-						self:RemoveItem(v):Remove()
+						num_found = num_found + v.components.stackable.stacksize
+						self:RemoveItem(v, true):Remove()
 					end
+				else
+					num_found = num_found + 1
+					self:RemoveItem(v):Remove()
 				end
-				return num_found
 			end
-			
+			return num_found
+		end
+		
 
-			for k = 1,self.maxslots do
-				local v = self.itemslots[k]
-				total_num_found = total_num_found + tryconsume(v)
-				
-				if total_num_found >= amount then
-					break
-				end
-			end
-			
-			if self.activeitem and self.activeitem.prefab == item and total_num_found < amount then
-				total_num_found = total_num_found + tryconsume(self.activeitem)
-			end
-
-			
-			if self.overflow and total_num_found < amount then
-				dumpvar, howmanyitemswereinoverflow = self.overflow.components.container:Has(item, 0)
-				if howmanyitemswereinoverflow > 0 then
-					self.overflow.components.container:ConsumeByName(item, (amount - total_num_found))
-					total_num_found = total_num_found + howmanyitemswereinoverflow
-				end
-			end
-			
-			if self.casket and total_num_found < amount then
-				dumpvar, howmanyitemswereincasket = self.casket.components.container:Has(item, 0)
-			
-				if howmanyitemswereincasket > 0 then
-				
-					self.casket.components.container:ConsumeByName(item, (amount - total_num_found))
-					total_num_found = total_num_found + howmanyitemswereincasket
+		for k = 1, self.maxslots do
+			local v = self.itemslots[k]
+			if v ~= nil and v.prefab == item then
+				amount = amount - tryconsume(self, v, amount)
+				if amount <= 0 then
+					return
 				end
 			end
 		end
+		
+		if self.activeitem ~= nil and self.activeitem.prefab == item then
+			amount = amount - tryconsume(self, self.activeitem, amount)
+			if amount <= 0 then
+				return
+			end
+		end
 
-		inst.ConsumeByName = ConsumeByNameOverwrite
+		local overflow = self:GetOverflowContainer()
+		if overflow ~= nil then
+			overflow:ConsumeByName(item, amount)
+		end
+		
+		local overflowCasket = self.casket:GetOverflowContainer()
+		if overflowCasket ~= nil then
+			overflowCasket:ConsumeByName(item, amount)
+		end			
 	end
+
+	inst.ConsumeByName = ConsumeByNameOverwrite
+	
 
 	local function GetItemByNameOverwrite (self, item, amount)
 		local total_num_found = 0
 		local items = {}
 		
-		local function tryfind(v)
-		
+		local function tryfind(v)		
 			local num_found = 0
 				if v and v.prefab == item then
 					local num_left_to_find = amount - total_num_found
@@ -565,15 +549,15 @@ function Casket_container (inst)
 			end
 			return num_found
 		end
-		
-		for k = self:GetNumSlots(), 1, -1 do
-			local v = self.slots[k]
+
+		for k,v in pairs(self.slots) do
 			total_num_found = total_num_found + tryfind(v)
+			
 			if total_num_found >= amount then
 				break
 			end
 		end
-		--print("items", items)
+
 		return items
 	end
 
@@ -593,29 +577,29 @@ function Casket_container (inst)
 	end
 	
 	local function RemoveItemOverwrite(self, item, wholestack)
-	    local dec_stack = not wholestack and item and item.components.stackable and item.components.stackable:IsStack() and item.components.stackable:StackSize() > 1
-		local slot = self:GetItemSlot(item)
-	    if dec_stack then
-	        local dec = item.components.stackable:Get()
-	        dec.prevslot = slot
-	        dec.prevcontainer = self
-	        return dec
-	    else
-	        for k,v in pairs(self.slots) do
-	            if v == item then
-	                self.slots[k] = nil
-	                self.inst:PushEvent("itemlose", {slot = k})
-	                
-	                if item.components.inventoryitem then
-	                    item.components.inventoryitem:OnRemoved()
-	                end
-	                
-			        item.prevslot = slot
-			        item.prevcontainer = self
-	                return item
-	            end
-	        end
-	    end
+	    if item == nil then
+			return
+		end
+
+		local prevslot = self:GetItemSlot(item)
+
+		if not wholestack and item.components.stackable ~= nil and item.components.stackable:IsStack() then
+			local dec = item.components.stackable:Get()
+			dec.prevslot = prevslot
+			dec.prevcontainer = self
+			return dec
+		end
+
+		for k, v in pairs(self.slots) do
+			if v == item then
+				self.slots[k] = nil
+				self.inst:PushEvent("itemlose", { slot = k })
+				item.components.inventoryitem:OnRemoved()
+				item.prevslot = prevslot
+				item.prevcontainer = self
+				return item
+			end
+		end
 	    
 	    return item
 
@@ -625,5 +609,6 @@ function Casket_container (inst)
 	inst.HasItemOrNull = HasItemOrNull
 	inst.RemoveItem = RemoveItemOverwrite
 end
+
 
 AddComponentPostInit("container", Casket_container)

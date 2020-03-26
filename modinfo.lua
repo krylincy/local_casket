@@ -1,8 +1,8 @@
 name = "Casket"
-version = "1.1"
+version = "1.0"
 author = "krylincy"
 
-description = "A small casket for your pocket."..version
+description = "A small casket for your pocket. \n"..version
 forumthread = ""
 
 api_version = 10
