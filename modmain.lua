@@ -647,7 +647,6 @@ local function Casket_inventory(inst)
 	end
 
 
-	
 	inst.SetCasket = SetCasket
 	inst.GetOverflowContainerCasket = GetOverflowContainerCasket
 	inst.FindItem = FindItemOverwrite
@@ -662,4 +661,17 @@ local function Casket_inventory(inst)
 	inst.GiveItem = GiveItemOverwrite
 end
 
+local function Casket_inventory_replica(inst)
+	local function GetOverflowContainerCasket(self)
+		if self.inst.components.inventory ~= nil then
+			return self.inst.components.inventory:GetOverflowContainerCasket()
+		else
+			return self.classified ~= nil and self.classified:GetOverflowContainerCasket() or nil
+		end
+	end
+	
+	inst.GetOverflowContainerCasket = GetOverflowContainerCasket
+
+end
 AddComponentPostInit("inventory", Casket_inventory)
+AddComponentPostInit("inventory_replica", Casket_inventory_replica)

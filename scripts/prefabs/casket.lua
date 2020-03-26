@@ -49,7 +49,7 @@ end
 
 
 local function onDropped(inst) 
-local casket_owner =  inst.components.casket.owner
+	local casket_owner =  inst.components.casket.owner
 	if casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
 		casket_owner.components.inventory:SetCasket(nil)
 	end 
@@ -74,16 +74,32 @@ containerparams.casket = {
     widget =
     {
         slotpos = slotpos,
+        pos = Vector3(0, -100, 0),
 		bgatlas = "images/casket-ui.xml",
 		bgimage = "casket-ui.tex",
-        pos = Vector3(0, -100, 0),
-        side_align_tip = 0,
     },
-    type = "chest",
+	issidewidget = false,
+    type = "casket",
 }
 
 containers.MAXITEMSLOTS = math.max(containers.MAXITEMSLOTS, containerparams.casket.widget.slotpos ~= nil and #containerparams.casket.widget.slotpos or 0)
 
+local oldWidgetsetupFunction = containers.widgetsetup
+	
+containers.widgetsetup = function (container, prefab, data)	
+	if prefab == "casket" then
+		local t = containerparams.casket or data or params[prefab or container.inst.prefab]
+		if t ~= nil then
+			for k, v in pairs(t) do
+				container[k] = v
+			end
+			container:SetNumSlots(container.widget.slotpos ~= nil and #container.widget.slotpos or 0)
+		end
+	
+	else
+		oldWidgetsetupFunction(container, prefab, data)
+	end	
+end
 
 local function fn(Sim)	
     local inst = CreateEntity()
@@ -124,6 +140,7 @@ local function fn(Sim)
 	inst:AddComponent("casket")
 	
 	inst:AddComponent("container")
+	inst.components.container:WidgetSetup("casket",containerparams.casket)
 	inst.components.container:WidgetSetup("casket",containerparams.casket)
 	
     inst.components.container.onopenfn = onopen
