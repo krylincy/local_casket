@@ -29,7 +29,6 @@ for z = 0, 2 do
 end
 
 local function onopen(inst)
-print('onopen casket')
 	inst.SoundEmitter:PlaySound("dontstarve/wilson/chest_open")
 end 
 
@@ -51,8 +50,6 @@ end
 
 local function onDropped(inst) 
 local casket_owner =  inst.components.casket.owner
-print('inst', inst)
-print('casket_owner', casket_owner)
 	if casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
 		casket_owner.components.inventory:SetCasket(nil)
 	end 

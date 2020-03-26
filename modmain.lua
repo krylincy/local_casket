@@ -72,469 +72,338 @@ local function Casket_inventory(inst)
 		self.casket = casket	
 	end
 
+	local function GetOverflowContainerCasket(self)
+		local item = self.casket
+		return item ~= nil and item.components.container or nil
+	end
+	
 	local function FindItemOverwrite(self, fn)
-	    for k,v in pairs(self.itemslots) do
-	        if fn(v) then
-	            return v
-	        end
-	    end
-
-	    local foundItem = nil 
-	    
-	    if self.activeitem and fn(self.activeitem) then
-	        foundItem = self.activeitem
-	    end
-	    
-	    local overflow = self:GetOverflowContainer()
-		foundItem = overflow ~= nil and overflow:FindItem(fn) or nil
-
-	    if not foundItem and self.casket then
-			foundItem = self.casket.components.container:FindItem(fn)
+		for k,v in pairs(self.itemslots) do
+			if fn(v) then
+				return v
+			end
 		end
 
-		return foundItem
+		if self.activeitem and fn(self.activeitem) then
+			return self.activeitem
+		end
+
+		local overflow = self:GetOverflowContainer()
+		local foundItems = overflow ~= nil and overflow:FindItem(fn) or nil
+		
+		if foundItems then
+			return foundItems
+		else
+			local overflowCasket = self:GetOverflowContainerCasket()
+			return overflowCasket ~= nil and overflowCasket:FindItem(fn) or nil
+		end		 
 	end
 
 	local function FindItemsOverwrite(self, fn)
-	    local items = {}
-	    
-	    for k,v in pairs(self.itemslots) do
-	        if fn(v) then
-	            table.insert(items, v)
-	        end
-	    end
-	    
-	    if self.activeitem and fn(self.activeitem) then
-	        table.insert(items, self.activeitem)
-	    end
-	    
+		local items = {}
 
-	    local overflow = self:GetOverflowContainer()
+		for k,v in pairs(self.itemslots) do
+			if fn(v) then
+				table.insert(items, v)
+			end
+		end
+
+		if self.activeitem and fn(self.activeitem) then
+			table.insert(items, self.activeitem)
+		end
+
+		local overflow = self:GetOverflowContainer()
 		if overflow ~= nil then
 			for k, v in pairs(overflow:FindItems(fn)) do
 				table.insert(items, v)
 			end
 		end
-
-		local casket_items = {}
-
-	    if self.casket then
-	        casket_items = self.casket.components.container:FindItems(fn)
-	    end
-
-	    if #casket_items > 0 then
-	        for k,v in pairs(casket_items) do
-	            table.insert(items, v)
-	        end
-	    end
-
-	    return items
-	end
-
-	local function GetNextAvailableSlotOverwrite(self, item)
 		
-		local prefabname = nil
-		if item.components.stackable ~= nil then
-			prefabname = item.prefab
-		
-	        --check for stacks that aren't full
-	        for k,v in pairs(self.equipslots) do
-	            if v.prefab == prefabname and v.components.equippable.equipstack and v.components.stackable and not v.components.stackable:IsFull() then
-	                return k, self.equipslots
-	            end
-	        end
-	        for k,v in pairs(self.itemslots) do
-	            if v.prefab == prefabname and v.components.stackable and not v.components.stackable:IsFull() then
-	                return k, self.itemslots
-	            end
-	        end
-	        if self.overflow and self.overflow.components.container then
-	            for k,v in pairs(self.overflow.components.container.slots) do
-	                if v.prefab == prefabname and v.components.stackable and not v.components.stackable:IsFull() then
-	                    return k, self.overflow
-	                end
-	            end
-	        end
-	        if self.casket and self.casket.components.container then
-	            for k,v in pairs(self.casket.components.container.slots) do
-	                if v.prefab == prefabname and v.components.stackable and not v.components.stackable:IsFull() then
-	                    return k, self.casket
-	                end
-	            end
-	        end
+		local overflowCasket = self:GetOverflowContainerCasket()
+		if overflowCasket ~= nil then
+			for k, v in pairs(overflowCasket:FindItems(fn)) do
+				table.insert(items, v)
+			end
 		end
 
-	    --check for empty space in the container
+		return items
+	end
+	
+	local function GetNextAvailableSlotOverwrite(self, item)
+		local prefabname = nil
+		local prefabskinname = nil
+		if item.components.stackable ~= nil then
+			prefabname = item.prefab
+			prefabskinname = item.skinname
+
+			--check for stacks that aren't full
+			for k, v in pairs(self.equipslots) do
+				if v.prefab == prefabname and v.skinname == prefabskinname and v.components.equippable.equipstack and v.components.stackable and not v.components.stackable:IsFull() then
+					return k, self.equipslots
+				end
+			end
+			for k, v in pairs(self.itemslots) do
+				if v.prefab == prefabname and v.skinname == prefabskinname and v.components.stackable and not v.components.stackable:IsFull() then
+					return k, self.itemslots
+				end
+			end
+			if not (item.components.inventoryitem ~= nil and item.components.inventoryitem.canonlygoinpocket) then
+				local overflow = self:GetOverflowContainer()
+				if overflow ~= nil then
+					for k, v in pairs(overflow.slots) do
+						if v.prefab == prefabname and v.skinname == prefabskinname and v.components.stackable and not v.components.stackable:IsFull() then
+							return k, overflow
+						end
+					end
+				end
+				
+				local overflowCasket = self:GetOverflowContainerCasket()
+				if overflowCasket ~= nil then
+					for k, v in pairs(overflowCasket.slots) do
+						if v.prefab == prefabname and v.skinname == prefabskinname and v.components.stackable and not v.components.stackable:IsFull() then
+							return k, overflowCasket
+						end
+					end
+				end
+			end
+		end
+
+		--check for empty space in the container
 		local empty = nil
-	    for k = 1, self.maxslots do
+		for k = 1, self.maxslots do
 			if self:CanTakeItemInSlot(item, k) and not self.itemslots[k] then
 				if prefabname ~= nil then
 					if empty == nil then
-	            		empty = k
+						empty = k
 					end
 				else
 					return k, self.itemslots
 				end
 			end
-	    end
-	    return empty, self.itemslots
+		end
+		return empty, self.itemslots
 	end
 
-	local function GiveItemOverride( self, inst, slot, screen_src_pos, skipsound )	    
-	    
-
-		local targetslot = slot
-
-	    if not inst.components.inventoryitem or not inst:IsValid() then
-	        return
-	    end
-
-	    local eslot = self:IsItemEquipped(inst)
-	    
-	    if eslot then
-	       self:Unequip(eslot) 
-	    end
-
-	    local new_item = inst ~= self.activeitem
-	    if new_item then
-	        for k, v in pairs(self.equipslots) do
-	            if v == inst then
-	                new_item = false
-	                break
-	            end
-	        end
-	    end
-
-		if inst.components.inventoryitem.owner and inst.components.inventoryitem.owner ~= self.inst then
-	        inst.components.inventoryitem:RemoveFromOwner(true)
+	local function CanAcceptCountOverwrite(self, item, maxcount)
+		local stacksize = math.max(maxcount or 0, item.components.stackable ~= nil and item.components.stackable.stacksize or 1)
+		if stacksize <= 0 then
+			return 0
 		end
 
-	    local objectDestroyed = inst.components.inventoryitem:OnPickup(self.inst)
-	    if objectDestroyed then
-	      	return
-	    end
+		local acceptcount = 0
 
-	    local can_use_suggested_slot = false
-
-	    if not slot and inst.prevslot and not inst.prevcontainer then
-	        slot = inst.prevslot
-	    end
-
-	    if not slot and inst.prevslot and inst.prevcontainer then
-	        if inst.prevcontainer.inst.components.inventoryitem and inst.prevcontainer.inst.components.inventoryitem.owner == self.inst and inst.prevcontainer:IsOpen() and inst.prevcontainer:GetItemInSlot(inst.prevslot) == nil then
-	            if inst.prevcontainer:GiveItem(inst, inst.prevslot, false) then
-	                return true
-	            else
-	                inst.prevcontainer = nil
-	                inst.prevslot = nil
-	                slot = nil
-	            end
-	        end
-	    end
-
-	    if slot then
-	        local olditem = self:GetItemInSlot(slot)
-	        can_use_suggested_slot = slot ~= nil and slot <= self.maxslots and ( olditem == nil or (olditem and olditem.components.stackable and olditem.prefab == inst.prefab)) and self:CanTakeItemInSlot(inst,slot)
-	    end
-
-	    local container = self.itemslots
-	    if not can_use_suggested_slot then
-			slot,container = self:GetNextAvailableSlot(inst)
-	    end
-
-	    local itemProcessed = false
-
-	    if slot then
-			if new_item and not skipsound then
-				self.inst:PushEvent("gotnewitem", {item = inst, slot = slot})
-			end
-			
-			local leftovers = nil
-	        if container == self.overflow and self.overflow and self.overflow.components.container then
-	            local overflow_itemInSlot = self.overflow.components.container:GetItemInSlot(slot) 
-				if overflow_itemInSlot then
-					leftovers = overflow_itemInSlot.components.stackable:Put(inst, screen_src_pos)
-				end
-	        elseif container == self.equipslots then
-		        if self.equipslots[slot] then
-					leftovers = self.equipslots[slot].components.stackable:Put(inst, screen_src_pos)
-				end
-		    elseif container == self.casket and self.casket and self.casket.components.container then
-	            local casket_itemInSlot = self.casket.components.container:GetItemInSlot(slot) 
-				if casket_itemInSlot then
-					leftovers = casket_itemInSlot.components.stackable:Put(inst, screen_src_pos)
-				end
-			else
-		        if self.itemslots[slot] ~= nil then
-	                if self.itemslots[slot].components.stackable:IsFull() then
-	                    leftovers = inst
-	                    inst.prevslot = nil
-	                else
-	                    leftovers = self.itemslots[slot].components.stackable:Put(inst, screen_src_pos)
-	                end
-		        else
-	                inst.components.inventoryitem:OnPutInInventory(self.inst)
-		    	    self.itemslots[slot] = inst
-				    self.inst:PushEvent("itemget", {item=inst, slot = slot, src_pos = screen_src_pos})
-		        end
-
-	            if inst.components.equippable then
-	                inst.components.equippable:ToPocket()
-	            end
-	        end
-	        
-	        if leftovers then
-	            self:GiveItem(leftovers)
-	        end
-	        
-	        return slot
-	    end
-
-	    if not itemProcessed and self.overflow and self.overflow.components.container then
-			if self.overflow.components.container:GiveItem(inst, nil, screen_src_pos) then
-				itemProcessed = true
-			end
-		end
-
-		if not itemProcessed and self.casket and self.casket.components.container then
-			if self.casket.components.container:GiveItem(inst, nil, screen_src_pos) then
-				itemProcessed = true
-			end
-		end
-
-		if itemProcessed then
-			return true
-		end
-
-
-	    self.inst:PushEvent("inventoryfull", {item=inst})
-	    
-	    --can't hold it!    
-	    if not self.activeitem and not GLOBAL.TheInput:ControllerAttached() then
-	        inst.components.inventoryitem:OnPutInInventory(self.inst)
-	        self:SetActiveItem(inst)
-	        return true
-	    else
-	        self:DropItem(inst, true, true)
-	    end
-	    
-	end
-
-	local function RemoveItemOverwrite(self, item, wholestack)
-
-	    local dec_stack = not wholestack and item and item.components.stackable and item.components.stackable:IsStack() and item.components.stackable:StackSize() > 1
-		
-		local prevslot = item.components.inventoryitem and item.components.inventoryitem:GetSlotNum() or nil
-
-	    if dec_stack then
-	        local dec = item.components.stackable:Get()
-	        dec.prevslot = prevslot
-	        return dec
-	    else
-	        for k,v in pairs(self.itemslots) do
-	            if v == item then
-	                self.itemslots[k] = nil
-	                self.inst:PushEvent("itemlose", {slot = k})
-	                
-	                if item.components.inventoryitem then
-	                    item.components.inventoryitem:OnRemoved()
-	                end
-	                
-					item.prevslot = prevslot
-	                return item	                
-	            end
-	        end
-
-	        local ret = nil
-	        if item == self.activeitem then
-	            self:SetActiveItem(nil)
-	            ret = item
-				self.inst:PushEvent("itemlose", {activeitem = true})            
-	        end
-
-	        for k,v in pairs(self.equipslots) do
-	            if v == item then
-	                self:Unequip(k)
-	                ret = v
-	            end
-	        end
-	        	        
-	        if ret then
-	            if ret.components.inventoryitem and ret.components.inventoryitem.OnRemoved then
-	                ret.components.inventoryitem:OnRemoved()
-					ret.prevslot = prevslot
-	                return ret
-	            end
-	        else
-	            if self.overflow and self.overflow.components.container and self.overflow.components.container:HasItemOrNull(item) then
-			        local item = self.overflow.components.container:RemoveItem(item, wholestack)
-			        item.prevslot = prevslot
-					item.prevcontainer = self.overflow.components.container
-					return item
-	            end
-	            if self.casket and self.casket.components.container and self.casket.components.container:HasItemOrNull(item) then
-			        local item = self.casket.components.container:RemoveItem(item, wholestack)
-			        item.prevslot = prevslot
-					item.prevcontainer = self.casket.components.container
-
-					return item
-	            end
-	        end
-
-	    end
-	    
-	    return item
-
-	end
-
-	local OldHasFunction = inst.Has
-
-	local function HasOverwrite(self, item, amount)
-		oldreturn1, returnamount = OldHasFunction(self, item, amount)
-
-	    if self.casket then
-	    	local casket_enough, casket_found = self.casket.components.container:Has(item, amount)
-			returnamount = returnamount + casket_found
-	    end
-	    
-	    return returnamount >= amount, returnamount
-	end
-
-	
-	local function ConsumeByNameOverwrite ( self, item, amount )
-			
-		local total_num_found = 0
-		
-		local function tryconsume(v)
-			local num_found = 0
-			if v and v.prefab == item then
-				local num_left_to_find = amount - total_num_found
-				
-				if v.components.stackable then
-					if v.components.stackable.stacksize > num_left_to_find then
-						v.components.stackable:SetStackSize(v.components.stackable.stacksize - num_left_to_find)
-						num_found = amount
-					else
-						num_found = num_found + v.components.stackable.stacksize
-						self:RemoveItem(v, true):Remove()
-					end
-				else
-					num_found = num_found + 1
-					self:RemoveItem(v):Remove()
-				end
-			end
-			return num_found
-		end
-		
-
+		--check for empty space in the container
 		for k = 1, self.maxslots do
 			local v = self.itemslots[k]
-			if v ~= nil and v.prefab == item then
-				amount = amount - tryconsume(self, v, amount)
-				if amount <= 0 then
-					return
+			if v ~= nil then
+				if v.prefab == item.prefab and v.skinname == item.skinname and v.components.stackable ~= nil then
+					acceptcount = acceptcount + v.components.stackable:RoomLeft()
+					if acceptcount >= stacksize then
+						return stacksize
+					end
+				end
+			elseif self:CanTakeItemInSlot(item, k) then
+				if self.acceptsstacks or stacksize <= 1 then
+					return stacksize
+				end
+				acceptcount = acceptcount + 1
+				if acceptcount >= stacksize then
+					return stacksize
 				end
 			end
 		end
-		
-		if self.activeitem and self.activeitem.prefab == item and total_num_found < amount then
-			total_num_found = total_num_found + tryconsume(self.activeitem)
-		end
 
-		
-		if self.overflow and total_num_found < amount then
-			dumpvar, howmanyitemswereinoverflow = self.overflow.components.container:Has(item, 0)
-			if howmanyitemswereinoverflow > 0 then
-				self.overflow.components.container:ConsumeByName(item, (amount - total_num_found))
-				total_num_found = total_num_found + howmanyitemswereinoverflow
-			end
-		end
-		
-		if self.casket and total_num_found < amount then
-			dumpvar, howmanyitemswereincasket = self.casket.components.container:Has(item, 0)
-		
-			if howmanyitemswereincasket > 0 then
-			
-				self.casket.components.container:ConsumeByName(item, (amount - total_num_found))
-				total_num_found = total_num_found + howmanyitemswereincasket
-			end
-		end
-	end
-
-	inst.ConsumeByName = ConsumeByNameOverwrite
-	
-
-	local function GetItemByNameOverwrite (self, item, amount)
-		local total_num_found = 0
-		local items = {}
-		
-		local function tryfind(v)		
-			local num_found = 0
-				if v and v.prefab == item then
-					local num_left_to_find = amount - total_num_found
-					if v.components.stackable then
-						if v.components.stackable.stacksize > num_left_to_find then
-							items[v] = num_left_to_find
-							num_found = amount
-						else
-							items[v] = v.components.stackable.stacksize
-							num_found = num_found + v.components.stackable.stacksize
+		if not (item.components.inventoryitem ~= nil and item.components.inventoryitem.canonlygoinpocket) then
+			--check for empty space in our backpack
+			local overflow = self:GetOverflowContainer()
+			if overflow ~= nil then
+				for k = 1, overflow.numslots do
+					local v = overflow.slots[k]
+					if v ~= nil then
+						if v.prefab == item.prefab and v.skinname == item.skinname and v.components.stackable ~= nil then
+							acceptcount = acceptcount + v.components.stackable:RoomLeft()
+							if acceptcount >= stacksize then
+								return stacksize
+							end
 						end
-					else
-						items[v] = 1
-						num_found = num_found + 1
+					elseif overflow:CanTakeItemInSlot(item, k) then
+						if overflow.acceptsstacks or stacksize <= 1 then
+							return stacksize
+						end
+						acceptcount = acceptcount + 1
+						if acceptcount >= stacksize then
+							return stacksize
+						end
 					end
-			  end
-			  
-			  return num_found
-			  
-		end
-
-		for k = self:GetNumSlots(), 1, -1 do
-			local v = self.itemslots[k]
-			total_num_found = total_num_found + tryfind(v)
-			if total_num_found >= amount then
-				break
+				end
+			end
+			
+			--check for casket
+			local overflowCasket = self:GetOverflowContainerCasket()
+			if overflowCasket ~= nil then
+				for k = 1, overflowCasket.numslots do
+					local v = overflowCasket.slots[k]
+					if v ~= nil then
+						if v.prefab == item.prefab and v.skinname == item.skinname and v.components.stackable ~= nil then
+							acceptcount = acceptcount + v.components.stackable:RoomLeft()
+							if acceptcount >= stacksize then
+								return stacksize
+							end
+						end
+					elseif overflowCasket:CanTakeItemInSlot(item, k) then
+						if overflowCasket.acceptsstacks or stacksize <= 1 then
+							return stacksize
+						end
+						acceptcount = acceptcount + 1
+						if acceptcount >= stacksize then
+							return stacksize
+						end
+					end
+				end
 			end
 		end
-		
-		if self.activeitem and self.activeitem.prefab == item and total_num_found < amount then
-			total_num_found = total_num_found + tryfind(self.activeitem)
+
+		if item.components.stackable ~= nil then
+			--check for equip stacks that aren't full
+			for k, v in pairs(self.equipslots) do
+				if v.prefab == item.prefab and v.skinname == item.skinname and v.components.equippable.equipstack and v.components.stackable ~= nil then
+					acceptcount = acceptcount + v.components.stackable:RoomLeft()
+					if acceptcount >= stacksize then
+						return stacksize
+					end
+				end
+			end
 		end
+
+		return acceptcount
+	end
 	
-		if self.overflow and total_num_found < amount then
-			local overflow_items = self.overflow.components.container:GetItemByName(item, (amount - total_num_found))
-			for k,v in pairs(overflow_items) do
-				items[k] = v
-				total_num_found = total_num_found + v
+	local function RemoveItemOverwrite(self, item, wholestack)
+		if item == nil then
+			return
+		end
+
+		local prevslot = item.components.inventoryitem and item.components.inventoryitem:GetSlotNum() or nil
+
+		if not wholestack and item.components.stackable ~= nil and item.components.stackable:IsStack() then
+			local dec = item.components.stackable:Get()
+			dec.prevslot = prevslot
+			dec.prevcontainer = nil
+			return dec
+		end
+
+		for k, v in pairs(self.itemslots) do
+			if v == item then
+				self.itemslots[k] = nil
+				self.inst:PushEvent("itemlose", { slot = k })
+				item.components.inventoryitem:OnRemoved()
+				item.prevslot = prevslot
+				item.prevcontainer = nil
+				return item
 			end
 		end
 
-		if self.casket and total_num_found < amount then
-			local casket_items = self.casket.components.container:GetItemByName(item, (amount - total_num_found))
-			for k,v in pairs(casket_items) do
-				items[k] = v
-				total_num_found = total_num_found + v
-			end
-		end	
+		if item == self.activeitem then
+			self:SetActiveItem()
+			self.inst:PushEvent("itemlose", { activeitem = true })
+			item.components.inventoryitem:OnRemoved()
+			item.prevslot = prevslot
+			item.prevcontainer = nil
+			return item
+		end
 
-		return items
+		for k, v in pairs(self.equipslots) do
+			if v == item then
+				self:Unequip(k)
+				item.components.inventoryitem:OnRemoved()
+				item.prevslot = prevslot
+				item.prevcontainer = nil
+				return item
+			end
+		end
+
+		local overflow = self:GetOverflowContainer()
+		local overflowItem =  overflow ~= nil and overflow:RemoveItem(item, wholestack) or item
+		
+		if overflowItem then
+			return overflowItem
+		else
+			local overflowCasket = self:GetOverflowContainerCasket()
+			return overflowCasket ~= nil and overflowCasket:RemoveItem(item, wholestack) or item
+		end
 	end
 
-	--inst.FindItem = FindItemOverwrite
-	--inst.FindItems = FindItemsOverwrite
-	--inst.GetNextAvailableSlot = GetNextAvailableSlotOverwrite
-	--inst.GiveItem = GiveItemOverride
-	--inst.RemoveItem = RemoveItemOverwrite
-	--inst.Has = HasOverwrite
-	--inst.GetItemByName = GetItemByNameOverwrite
-	inst.SetCasket = SetCasket
-end
+	local function HasOverwrite(self, item, amount)
+		local num_found = 0
+		for k, v in pairs(self.itemslots) do
+			if v and v.prefab == item then
+				if v.components.stackable ~= nil then
+					num_found = num_found + v.components.stackable:StackSize()
+				else
+					num_found = num_found + 1
+				end
+			end
+		end
 
-AddComponentPostInit("inventory", Casket_inventory)
+		if self.activeitem and self.activeitem.prefab == item then
+			if self.activeitem.components.stackable ~= nil then
+				num_found = num_found + self.activeitem.components.stackable:StackSize()
+			else
+				num_found = num_found + 1
+			end
+		end
 
-function Casket_container (inst)
-	local function GetItemByNameOverride(self, item, amount)
+		local overflow = self:GetOverflowContainer()
+		if overflow ~= nil then
+			local overflow_enough, overflow_found = overflow:Has(item, amount)
+			num_found = num_found + overflow_found
+		end
+		
+		local overflowCasket = self:GetOverflowContainerCasket()
+		if overflowCasket ~= nil then
+			local overflow_enough, overflow_found = overflowCasket:Has(item, amount)
+			num_found = num_found + overflow_found
+		end
+
+		return num_found >= amount, num_found
+	end
+		
+	local function HasItemWithTagOverwrite(self, tag, amount)
+		local num_found = 0
+		for k, v in pairs(self.itemslots) do
+			if v and v:HasTag(tag) then
+				if v.components.stackable ~= nil then
+					num_found = num_found + v.components.stackable:StackSize()
+				else
+					num_found = num_found + 1
+				end
+			end
+		end
+
+		if self.activeitem and self.activeitem:HasTag(tag) then
+			if self.activeitem.components.stackable ~= nil then
+				num_found = num_found + self.activeitem.components.stackable:StackSize()
+			else
+				num_found = num_found + 1
+			end
+		end
+
+		local overflow = self:GetOverflowContainer()
+		if overflow ~= nil then
+			local overflow_enough, overflow_found = overflow:HasItemWithTag(tag, amount)
+			num_found = num_found + overflow_found
+		end
+
+		local overflowCasket = self:GetOverflowContainerCasket()
+		if overflowCasket ~= nil then
+			local overflow_enough, overflow_found = overflowCasket:HasItemWithTag(tag, amount)
+			num_found = num_found + overflow_found
+		end
+		
+		return num_found >= amount, num_found
+	end
+	
+	local function GetItemByNameOverwrite(self, item, amount) 
 		local total_num_found = 0
 		local items = {}
 
@@ -558,65 +427,239 @@ function Casket_container (inst)
 			return num_found
 		end
 
-		for k,v in pairs(self.slots) do
+		for k = 1,self.maxslots do
+			local v = self.itemslots[k]
 			total_num_found = total_num_found + tryfind(v)
-			
 			if total_num_found >= amount then
 				break
+			end
+		end
+
+		if self.activeitem and self.activeitem.prefab == item and total_num_found < amount then
+			total_num_found = total_num_found + tryfind(self.activeitem)
+		end
+
+		local overflow = self:GetOverflowContainer()
+		if overflow and total_num_found < amount then
+			local overflow_items = overflow:GetItemByName(item, (amount - total_num_found))
+			for k,v in pairs(overflow_items) do
+				items[k] = v
+			end
+		end
+		
+		local overflowCasket = self:GetOverflowContainerCasket()
+		if overflowCasket and total_num_found < amount then
+			local overflow_items = overflowCasket:GetItemByName(item, (amount - total_num_found))
+			for k,v in pairs(overflow_items) do
+				items[k] = v
 			end
 		end
 
 		return items
 	end
 
-	local function HasItemOrNull(self,item)
-	
-		local toReturn = nil
-	
-		for k,v in pairs(self.slots) do
-			if v == item then
-				toReturn = v
-				break
-			end
-		end
-		
-		return toReturn
-	
-	end
-	
-	local function RemoveItemOverwrite(self, item, wholestack)
-	    if item == nil then
+	local function ConsumeByNameOverwrite(self, item, amount)
+		if amount <= 0 then
 			return
 		end
 
-		local prevslot = self:GetItemSlot(item)
-
-		if not wholestack and item.components.stackable ~= nil and item.components.stackable:IsStack() then
-			local dec = item.components.stackable:Get()
-			dec.prevslot = prevslot
-			dec.prevcontainer = self
-			return dec
-		end
-
-		for k, v in pairs(self.slots) do
-			if v == item then
-				self.slots[k] = nil
-				self.inst:PushEvent("itemlose", { slot = k })
-				item.components.inventoryitem:OnRemoved()
-				item.prevslot = prevslot
-				item.prevcontainer = self
-				return item
+		for k = 1, self.maxslots do
+			local v = self.itemslots[k]
+			if v ~= nil and v.prefab == item then
+				amount = amount - tryconsume(self, v, amount)
+				if amount <= 0 then
+					return
+				end
 			end
 		end
-	    
-	    return item
 
+		if self.activeitem ~= nil and self.activeitem.prefab == item then
+			amount = amount - tryconsume(self, self.activeitem, amount)
+			if amount <= 0 then
+				return
+			end
+		end
+
+		local overflow = self:GetOverflowContainer()
+		if overflow ~= nil then
+			overflow:ConsumeByName(item, amount)
+		end
+				
+		local overflowCasket = self:GetOverflowContainerCasket()
+		if overflowCasket ~= nil then
+			overflowCasket:ConsumeByName(item, amount)
+		end
 	end
 
-	--inst.GetItemByName = GetItemByNameOverride
-	inst.HasItemOrNull = HasItemOrNull
-	--inst.RemoveItem = RemoveItemOverwrite
+	local function GiveItemOverwrite(self, inst, slot, src_pos)
+		if inst.components.inventoryitem == nil or not inst:IsValid() then
+			return
+		end
+
+		local eslot = self:IsItemEquipped(inst)
+
+		if eslot then
+		   self:Unequip(eslot)
+		end
+
+		local new_item = inst ~= self.activeitem
+		if new_item then
+			for k, v in pairs(self.equipslots) do
+				if v == inst then
+					new_item = false
+					break
+				end
+			end
+		end
+
+		if inst.components.inventoryitem.owner and inst.components.inventoryitem.owner ~= self.inst then
+			inst.components.inventoryitem:RemoveFromOwner(true)
+		end
+
+		local objectDestroyed = inst.components.inventoryitem:OnPickup(self.inst, src_pos)
+		if objectDestroyed then
+			return
+		end
+
+		local can_use_suggested_slot = false
+
+		if not slot and inst.prevslot and not inst.prevcontainer then
+			slot = inst.prevslot
+		end
+
+		if not slot and inst.prevslot and inst.prevcontainer then
+			if inst.prevcontainer.inst:IsValid() and inst.prevcontainer:IsOpenedBy(self.inst) then
+				local item = inst.prevcontainer:GetItemInSlot(inst.prevslot)
+				if item == nil then
+					if inst.prevcontainer:GiveItem(inst, inst.prevslot) then
+						return true
+					end
+				elseif item.prefab == inst.prefab and item.skinname == inst.skinname and
+					item.components.stackable ~= nil and
+					inst.prevcontainer:AcceptsStacks() and
+					inst.prevcontainer:CanTakeItemInSlot(inst, inst.prevslot) and
+					item.components.stackable:Put(inst) == nil then
+					return true
+				end
+			end
+			inst.prevcontainer = nil
+			inst.prevslot = nil
+			slot = nil
+		end
+
+		if slot then
+			local olditem = self:GetItemInSlot(slot)
+			can_use_suggested_slot = slot ~= nil and slot <= self.maxslots and ( olditem == nil or (olditem and olditem.components.stackable and olditem.prefab == inst.prefab and olditem.skinname == inst.skinname)) and self:CanTakeItemInSlot(inst,slot)
+		end
+
+		local overflow = self:GetOverflowContainer()
+		local overflowCasket = self:GetOverflowContainerCasket()
+		local container = self.itemslots
+		if not can_use_suggested_slot then
+			slot, container = self:GetNextAvailableSlot(inst)
+		end
+
+		local itemProcessed = false
+		if slot then
+			if new_item and not self.ignoresound then
+				self.inst:PushEvent("gotnewitem", { item = inst, slot = slot })
+			end
+
+			local leftovers = nil
+			if overflow ~= nil and container == overflow then
+				local itemInSlot = overflow:GetItemInSlot(slot) 
+				if itemInSlot then
+					leftovers = itemInSlot.components.stackable:Put(inst, src_pos)
+				end
+			elseif container == self.equipslots then
+				if self.equipslots[slot] then
+					leftovers = self.equipslots[slot].components.stackable:Put(inst, src_pos)
+				end
+			elseif overflowCasket ~= nil and container == overflowCasket then
+				local casket_itemInSlot = overflowCasket:GetItemInSlot(slot) 
+				if casket_itemInSlot then
+					leftovers = casket_itemInSlot.components.stackable:Put(inst, src_pos)
+				end
+			else
+				if self.itemslots[slot] ~= nil then
+					if self.itemslots[slot].components.stackable:IsFull() then
+						leftovers = inst
+						inst.prevcontainer = nil
+						inst.prevslot = nil
+					else
+						leftovers = self.itemslots[slot].components.stackable:Put(inst, src_pos)
+					end
+				else
+					inst.components.inventoryitem:OnPutInInventory(self.inst)
+					self.itemslots[slot] = inst
+					self.inst:PushEvent("itemget", { item = inst, slot = slot, src_pos = src_pos })
+				end
+
+				if inst.components.equippable then
+					inst.components.equippable:ToPocket()
+				end
+			end
+
+			if leftovers then
+				if not self:GiveItem(leftovers) and self.ignorefull then
+					--Hack: should only reach here when moving items between containers
+					return false
+				end
+			end
+
+			return slot
+		end
+		
+		if not itemProcessed and overflow ~= nil and overflow:GiveItem(inst, nil, src_pos) then
+			itemProcessed = true
+		end
+
+		if not itemProcessed and self.casket and self.casket.components.container then
+			if self.casket.components.container:GiveItem(inst, nil, screen_src_pos) then
+				itemProcessed = true
+			end
+		end
+		
+		if itemProcessed then
+			return true
+		end
+
+		if self.ignorefull then
+			return false
+		end
+
+		if not (self.isloading or self.silentfull) and self.maxslots > 0 then
+			self.inst:PushEvent("inventoryfull", { item = inst })
+		end
+
+		--can't hold it!
+		if self.activeitem == nil and
+			self.maxslots > 0 and
+			not inst.components.inventoryitem.canonlygoinpocket and
+			not (self.inst.components.playercontroller ~= nil and
+				self.inst.components.playercontroller.isclientcontrollerattached) then
+			inst.components.inventoryitem:OnPutInInventory(self.inst)
+			self:SetActiveItem(inst)
+			return true
+		else
+			self:DropItem(inst, true, true)
+		end
+	end
+
+
+	
+	inst.SetCasket = SetCasket
+	inst.GetOverflowContainerCasket = GetOverflowContainerCasket
+	inst.FindItem = FindItemOverwrite
+	inst.FindItems = FindItemsOverwrite
+	inst.GetNextAvailableSlot = GetNextAvailableSlotOverwrite
+	inst.CanAcceptCount = CanAcceptCountOverwrite
+	inst.RemoveItem = RemoveItemOverwrite
+	inst.Has = HasOverwrite
+	inst.HasItemWithTag = HasItemWithTagOverwrite
+	inst.GetItemByName = GetItemByNameOverwrite
+	inst.ConsumeByName = ConsumeByNameOverwrite
+	inst.GiveItem = GiveItemOverwrite
 end
 
-
-AddComponentPostInit("container", Casket_container)
+AddComponentPostInit("inventory", Casket_inventory)
