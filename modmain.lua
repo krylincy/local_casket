@@ -116,14 +116,17 @@ local function Casket_inventory(inst)
 			end
 		end
 
-		if self.casket then
-			local casket_items = self.casket:GetOverflowContainer()
-			if casket_items ~= nil then
-				for k, v in pairs(casket_items:FindItems(fn)) do
-					table.insert(items, v)
-				end
-			end
-		end
+		local casket_items = {}
+
+	    if self.casket then
+	        casket_items = self.casket.components.container:FindItems(fn)
+	    end
+
+	    if #casket_items > 0 then
+	        for k,v in pairs(casket_items) do
+	            table.insert(items, v)
+	        end
+	    end
 
 	    return items
 	end
@@ -388,8 +391,7 @@ local function Casket_inventory(inst)
 
 	local function HasOverwrite(self, item, amount)
 		oldreturn1, returnamount = OldHasFunction(self, item, amount)
-GLOBAL.TheNet:SystemMessage('HasOverwrite', false)
-GLOBAL.TheNet:SystemMessage(self.casket, false)
+
 	    if self.casket then
 	    	local casket_enough, casket_found = self.casket.components.container:Has(item, amount)
 			returnamount = returnamount + casket_found
@@ -435,22 +437,28 @@ GLOBAL.TheNet:SystemMessage(self.casket, false)
 			end
 		end
 		
-		if self.activeitem ~= nil and self.activeitem.prefab == item then
-			amount = amount - tryconsume(self, self.activeitem, amount)
-			if amount <= 0 then
-				return
-			end
+		if self.activeitem and self.activeitem.prefab == item and total_num_found < amount then
+			total_num_found = total_num_found + tryconsume(self.activeitem)
 		end
 
-		local overflow = self:GetOverflowContainer()
-		if overflow ~= nil then
-			overflow:ConsumeByName(item, amount)
+		
+		if self.overflow and total_num_found < amount then
+			dumpvar, howmanyitemswereinoverflow = self.overflow.components.container:Has(item, 0)
+			if howmanyitemswereinoverflow > 0 then
+				self.overflow.components.container:ConsumeByName(item, (amount - total_num_found))
+				total_num_found = total_num_found + howmanyitemswereinoverflow
+			end
 		end
 		
-		local overflowCasket = self.casket:GetOverflowContainer()
-		if overflowCasket ~= nil then
-			overflowCasket:ConsumeByName(item, amount)
-		end			
+		if self.casket and total_num_found < amount then
+			dumpvar, howmanyitemswereincasket = self.casket.components.container:Has(item, 0)
+		
+			if howmanyitemswereincasket > 0 then
+			
+				self.casket.components.container:ConsumeByName(item, (amount - total_num_found))
+				total_num_found = total_num_found + howmanyitemswereincasket
+			end
+		end
 	end
 
 	inst.ConsumeByName = ConsumeByNameOverwrite
@@ -513,13 +521,13 @@ GLOBAL.TheNet:SystemMessage(self.casket, false)
 		return items
 	end
 
-	inst.FindItem = FindItemOverwrite
-	inst.FindItems = FindItemsOverwrite
-	inst.GetNextAvailableSlot = GetNextAvailableSlotOverwrite
-	inst.GiveItem = GiveItemOverride
-	inst.RemoveItem = RemoveItemOverwrite
-	inst.Has = HasOverwrite
-	inst.GetItemByName = GetItemByNameOverwrite
+	--inst.FindItem = FindItemOverwrite
+	--inst.FindItems = FindItemsOverwrite
+	--inst.GetNextAvailableSlot = GetNextAvailableSlotOverwrite
+	--inst.GiveItem = GiveItemOverride
+	--inst.RemoveItem = RemoveItemOverwrite
+	--inst.Has = HasOverwrite
+	--inst.GetItemByName = GetItemByNameOverwrite
 	inst.SetCasket = SetCasket
 end
 
@@ -605,9 +613,9 @@ function Casket_container (inst)
 
 	end
 
-	inst.GetItemByName = GetItemByNameOverride
+	--inst.GetItemByName = GetItemByNameOverride
 	inst.HasItemOrNull = HasItemOrNull
-	inst.RemoveItem = RemoveItemOverwrite
+	--inst.RemoveItem = RemoveItemOverwrite
 end
 
 
