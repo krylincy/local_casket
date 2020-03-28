@@ -2,7 +2,7 @@ name = "Casket"
 version = "1.0"
 author = "krylincy"
 
-description = "A small casket for your pocket. \n"..version
+description = "A small casket for your pocket. \n Version: "..version
 forumthread = ""
 
 api_version = 10

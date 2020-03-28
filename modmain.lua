@@ -72,6 +72,7 @@ local function Casket_inventory(inst)
 		self.casket = casket	
 	end
 
+	-- like the backpack container (overflow) I need a own one for the casket to return the container
 	local function GetOverflowContainerCasket(self)
 		local item = self.casket
 		return item ~= nil and item.components.container or nil
@@ -94,6 +95,7 @@ local function Casket_inventory(inst)
 		if foundItems then
 			return foundItems
 		else
+			-- if no items found in the overflow container, then start searching in casket
 			local overflowCasket = self:GetOverflowContainerCasket()
 			return overflowCasket ~= nil and overflowCasket:FindItem(fn) or nil
 		end		 
@@ -119,6 +121,7 @@ local function Casket_inventory(inst)
 			end
 		end
 		
+		-- if no items found in the overflow container, then start searching in casket
 		local overflowCasket = self:GetOverflowContainerCasket()
 		if overflowCasket ~= nil then
 			for k, v in pairs(overflowCasket:FindItems(fn)) do
@@ -157,6 +160,7 @@ local function Casket_inventory(inst)
 					end
 				end
 				
+				-- check now additional in the casket container
 				local overflowCasket = self:GetOverflowContainerCasket()
 				if overflowCasket ~= nil then
 					for k, v in pairs(overflowCasket.slots) do
@@ -250,7 +254,7 @@ local function Casket_inventory(inst)
 								return stacksize
 							end
 						end
-					elseif overflowCasket:CanTakeItemInSlot(item, k) then
+					elseif overflowCasket:CanTakeItemInSlot(item, k) then -- check here for the casket
 						if overflowCasket.acceptsstacks or stacksize <= 1 then
 							return stacksize
 						end
@@ -646,7 +650,9 @@ local function Casket_inventory(inst)
 		end
 	end
 
-
+			
+		
+	-- set up all overwrites here
 	inst.SetCasket = SetCasket
 	inst.GetOverflowContainerCasket = GetOverflowContainerCasket
 	inst.FindItem = FindItemOverwrite
@@ -661,17 +667,266 @@ local function Casket_inventory(inst)
 	inst.GiveItem = GiveItemOverwrite
 end
 
-local function Casket_inventory_replica(inst)
-	local function GetOverflowContainerCasket(self)
-		if self.inst.components.inventory ~= nil then
-			return self.inst.components.inventory:GetOverflowContainerCasket()
-		else
-			return self.classified ~= nil and self.classified:GetOverflowContainerCasket() or nil
-		end
+local function Casket_inventory_classified(inst)
+	local function SetCasket(inst, casket)
+		inst.casket = casket	
+	end
+
+	-- like the backpack container (overflow) I need a own one for the casket to return the container
+	local function GetOverflowContainerCasket(inst)
+		local item = inst.casket
+		return item ~= nil and item.replica.container or nil
 	end
 	
-	inst.GetOverflowContainerCasket = GetOverflowContainerCasket
+	local function Count(item)
+		return item.replica.stackable ~= nil and item.replica.stackable:StackSize() or 1
+	end
+	
+	local function HasOverwrite(inst, prefab, amount)		
+		
+		if GLOBAL.ThePlayer.replica.inventory ~= nil then		
+			inst:SetCasket(GLOBAL.ThePlayer.replica.inventory:GetCasket())	
+		end
+		
+		
+		local count =
+			inst._activeitem ~= nil and
+			inst._activeitem.prefab == prefab and
+			Count(inst._activeitem) or 0
 
+		if inst._itemspreview ~= nil then
+			for i, v in ipairs(inst._items) do
+				local item = inst._itemspreview[i]
+				if item ~= nil and item.prefab == prefab then
+					count = count + Count(item)
+				end
+			end
+		else
+			for i, v in ipairs(inst._items) do
+				local item = v:value()
+				if item ~= nil and item ~= inst._activeitem and item.prefab == prefab then
+					count = count + Count(item)
+				end
+			end
+		end
+
+		local overflow = inst:GetOverflowContainer(inst)
+		if overflow ~= nil then
+			local overflowhas, overflowcount = overflow:Has(prefab, amount)
+			count = count + overflowcount
+		end
+		
+		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+		if overflowCasket ~= nil then
+			local overflowhas, overflowcount = overflowCasket:Has(prefab, amount)
+			count = count + overflowcount
+		end
+
+		return count >= amount, count
+	end
+	
+	local function HasItemWithTagOverwrite(inst, tag, amount)
+		local count =
+			inst._activeitem ~= nil and
+			inst._activeitem:HasTag(tag) and
+			Count(inst._activeitem) or 0
+
+		if inst._itemspreview ~= nil then
+			for i, v in ipairs(inst._items) do
+				local item = inst._itemspreview[i]
+				if item ~= nil and item:HasTag(tag) then
+					count = count + Count(item)
+				end
+			end
+		else
+			for i, v in ipairs(inst._items) do
+				local item = v:value()
+				if item ~= nil and item ~= inst._activeitem and item:HasTag(tag) then
+					count = count + Count(item)
+				end
+			end
+		end
+
+		local overflow = inst:GetOverflowContainer(inst)
+		if overflow ~= nil then
+			local overflowhas, overflowcount = overflow:HasItemWithTag(tag, amount)
+			count = count + overflowcount
+		end
+		
+		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+		if overflowCasket ~= nil then
+			local overflowhas, overflowcount = overflowCasket:HasItemWithTag(tag, amount)
+			count = count + overflowcount
+		end
+
+		return count >= amount, count
+	end
+	
+	local function ReceiveItemOverwrite(inst, item, count)
+		if IsBusy(inst) then
+			return
+		end
+		
+		local overflow = inst:GetOverflowContainer(inst)
+		overflow = overflow and overflow.classified or nil
+		
+		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+		overflowCasket = overflowCasket and overflowCasket.classified or nil
+				
+		if overflow ~= nil and overflow:IsBusy() then
+			return
+		end
+		
+		local isstackable = item.replica.stackable ~= nil
+		local originalstacksize = isstackable and item.replica.stackable:StackSize() or 1
+		
+		if not isstackable or inst._parent.replica.inventory == nil or not inst._parent.replica.inventory:AcceptsStacks() then
+			for i, v in ipairs(inst._items) do
+				if v:value() == nil then
+					local giveitem = SlotItem(item, i)
+					PushItemGet(inst, giveitem)
+					if originalstacksize > 1 then
+						PushStackSize(inst, item, nil, nil, 1, false, true)
+						return originalstacksize - 1
+					else
+						return 0
+					end
+				end
+			end
+			
+			local overflowGiveResult
+			
+			if overflow ~= nil then
+				local overflowGiveResult = overflow:ReceiveItem(item, count) or nil
+			end
+			
+			if overflowGiveResult ~= nil then
+				return overflowGiveResult
+			elseif overflowCasket ~= nil then
+				return overflowCasket:ReceiveItem(item, count)
+			end
+		else
+			local originalcount = count and math.min(count, originalstacksize) or originalstacksize
+			count = originalcount
+			if item.replica.equippable ~= nil then
+				local eslot = item.replica.equippable:EquipSlot()
+				local equip = inst:GetEquippedItem(eslot)
+				if equip ~= nil and
+					equip.prefab == item.prefab and equip.skinname == item.skinname and
+					equip.replica.stackable ~= nil and
+					not equip.replica.stackable:IsFull() then
+					local stacksize = equip.replica.stackable:StackSize() + count
+					local maxsize = equip.replica.stackable:MaxSize()
+					
+					if stacksize > maxsize then
+						count = math.max(stacksize - maxsize, 0)
+						stacksize = maxsize
+					else
+						count = 0
+					end
+					PushStackSize(inst, equip, stacksize, true, nil, nil, nil, SlotEquip(equip, eslot))
+				end
+			end
+			if count > 0 then
+				local emptyslot = nil
+				for i, v in ipairs(inst._items) do
+					local slotitem = v:value()
+					if slotitem == nil then
+						if emptyslot == nil then
+							emptyslot = i
+						end
+					elseif slotitem.prefab == item.prefab and slotitem.skinname == item.skinname and
+						slotitem.replica.stackable ~= nil and
+						not slotitem.replica.stackable:IsFull() then
+						local stacksize = slotitem.replica.stackable:StackSize() + count
+						local maxsize = slotitem.replica.stackable:MaxSize()
+						if stacksize > maxsize then
+							count = math.max(stacksize - maxsize, 0)
+							stacksize = maxsize
+						else
+							count = 0
+						end
+						PushStackSize(inst, slotitem, stacksize, true, nil, nil, nil, SlotItem(slotitem, i))
+						if count <= 0 then
+							break
+						end
+					end
+				end
+				if count > 0 then
+					if emptyslot ~= nil then
+						local giveitem = SlotItem(item, emptyslot)
+						PushItemGet(inst, giveitem)
+						if count ~= originalstacksize then
+							PushStackSize(inst, item, nil, nil, count, false, true)
+						end
+						count = 0
+					elseif overflow ~= nil then
+						local remainder = overflow:ReceiveItem(item, count)
+						if remainder ~= nil then
+							count = math.max(count - (originalstacksize - remainder), 0)
+						end
+					elseif overflowCasket ~= nil then
+						local remainder = overflowCasket:ReceiveItem(item, count)
+						if remainder ~= nil then
+							count = math.max(count - (originalstacksize - remainder), 0)
+						end
+					end
+				end
+			end
+			if count ~= originalcount then
+				return originalstacksize - (originalcount - count)
+			end
+		end
+	end
+
+	
+	if not GLOBAL.TheWorld.ismastersim then	
+		inst.SetCasket = SetCasket
+		inst.GetOverflowContainerCasket = GetOverflowContainerCasket
+		inst.Has = HasOverwrite
+		inst.HasItemWithTag = HasItemWithTagOverwrite
+		inst.ReceiveItem = ReceiveItemOverwrite		
+	end
 end
+
 AddComponentPostInit("inventory", Casket_inventory)
-AddComponentPostInit("inventory_replica", Casket_inventory_replica)
+
+--AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
+
+-- local InventoryReplica = require 'components/inventory_replica'
+-- function InventoryReplica:SetCasket(casket)
+	-- self.casket = casket		
+-- end
+
+-- function InventoryReplica:GetCasket()
+	-- return self.casket
+-- end
+
+-- function InventoryReplica:GetOverflowContainerCasket(prefab, amount)
+	-- if self.inst.components.inventory ~= nil then
+		-- return self.inst.components.inventory:GetOverflowContainerCasket()
+	-- else
+		-- return self.classified ~= nil and self.classified:GetOverflowContainerCasket() or nil
+	-- end
+-- end
+
+-- function InventoryReplica:Has(prefab, amount)
+    -- if self.inst.components.inventory ~= nil then
+        -- return self.inst.components.inventory:Has(prefab, amount)
+    -- elseif self.classified ~= nil then
+        -- return self.classified:Has(prefab, amount)
+    -- else
+        -- return amount <= 0, 0
+    -- end
+-- end
+
+-- function InventoryReplica:HasItemWithTag(tag, amount)
+    -- if self.inst.components.inventory ~= nil then
+        -- return self.inst.components.inventory:HasItemWithTag(tag, amount)
+    -- elseif self.classified ~= nil then
+        -- return self.classified:HasItemWithTag(tag, amount)
+    -- else
+        -- return amount <= 0, 0
+    -- end
+-- end
+

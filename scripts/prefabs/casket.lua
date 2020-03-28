@@ -13,20 +13,6 @@ local spacer = 30
 local posX
 local poxY
 
-for z = 0, 2 do
-	for y = 7, 0, -1 do
-		for x = 0, 4 do
-			posX = 80*x-600 + 80*5*z + spacer*z
-			posY = 80*y-100
-
-			if y > 3 then
-				posY = posY + spacer
-			end
-
-			table.insert(slotpos, Vector3(posX, posY, 0))
-		end
-	end
-end
 
 local function onopen(inst)
 	inst.SoundEmitter:PlaySound("dontstarve/wilson/chest_open")
@@ -38,17 +24,19 @@ end
 
 
 local function onPickup(inst, owner) 
+	-- set the owner for the casket to check later, if there is one in inventory
     if owner.components ~= nil and owner.components.inventory ~= nil then
-		owner.components.inventory:SetCasket(inst)
+		owner.components.inventory:SetCasket(inst)	
 	end 
 	
 	if inst.components.casket ~= nil then
 		inst.components.casket:SetOwner(owner)
-	end 
+	end 	
 end 
 
 
 local function onDropped(inst) 
+	-- remove the binding to the casket, else items would still get into it while not in inventory
 	local casket_owner =  inst.components.casket.owner
 	if casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
 		casket_owner.components.inventory:SetCasket(nil)
@@ -68,6 +56,25 @@ local function onhammered(inst, worker)
 	inst:Remove()
 end
 
+---------------------------------------------------------------
+-- setup container widget with new size for the casket prefab
+
+-- building the slot table and position
+for z = 0, 2 do
+	for y = 7, 0, -1 do
+		for x = 0, 4 do
+			posX = 80*x-600 + 80*5*z + spacer*z
+			posY = 80*y-100
+
+			if y > 3 then
+				posY = posY + spacer
+			end
+
+			table.insert(slotpos, Vector3(posX, posY, 0))
+		end
+	end
+end
+
 local containers = require "containers"
 local containerparams = {}
 containerparams.casket = {
@@ -85,6 +92,8 @@ containerparams.casket = {
 containers.MAXITEMSLOTS = math.max(containers.MAXITEMSLOTS, containerparams.casket.widget.slotpos ~= nil and #containerparams.casket.widget.slotpos or 0)
 
 local oldWidgetsetupFunction = containers.widgetsetup
+
+---------------------------------------------------------------
 	
 containers.widgetsetup = function (container, prefab, data)	
 	if prefab == "casket" then
@@ -124,13 +133,14 @@ local function fn(Sim)
 
 	if not TheWorld.ismastersim then
 		inst.OnEntityReplicated = function(inst) 
-			inst.replica.container:WidgetSetup("casket",containerparams.casket) 
+			-- add replica widget for client
+			inst.replica.container:WidgetSetup("casket",containerparams.casket)  
 		end
 		
 		return inst
 	end	
 
-	inst:AddTag("chest")
+	inst:AddTag("chest") -- add to work with "craft from chest" mod
 	inst:AddComponent("inventoryitem")
 	inst.components.inventoryitem.atlasname = "images/inventoryimages/casket.xml"
     inst.components.inventoryitem.imagename = "casket"	
@@ -140,7 +150,6 @@ local function fn(Sim)
 	inst:AddComponent("casket")
 	
 	inst:AddComponent("container")
-	inst.components.container:WidgetSetup("casket",containerparams.casket)
 	inst.components.container:WidgetSetup("casket",containerparams.casket)
 	
     inst.components.container.onopenfn = onopen
