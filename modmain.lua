@@ -889,7 +889,7 @@ local function Casket_inventory_classified(inst)
 	end
 end
 
-AddComponentPostInit("inventory", Casket_inventory)
+--AddComponentPostInit("inventory", Casket_inventory)
 
 --AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
 

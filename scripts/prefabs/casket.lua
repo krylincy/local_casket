@@ -141,11 +141,12 @@ local function fn(Sim)
 	end	
 
 	inst:AddTag("chest") -- add to work with "craft from chest" mod
+	inst:AddTag("noautopickup")
 	inst:AddComponent("inventoryitem")
 	inst.components.inventoryitem.atlasname = "images/inventoryimages/casket.xml"
     inst.components.inventoryitem.imagename = "casket"	
-	inst.components.inventoryitem:SetOnDroppedFn(onDropped)
-	inst.components.inventoryitem:SetOnPutInInventoryFn(onPickup)
+	--inst.components.inventoryitem:SetOnDroppedFn(onDropped)
+	--inst.components.inventoryitem:SetOnPutInInventoryFn(onPickup)
 	
 	inst:AddComponent("casket")
 	
