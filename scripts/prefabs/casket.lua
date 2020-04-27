@@ -32,6 +32,8 @@ local function onPickup(inst, owner)
 	if inst.components.casket ~= nil then
 		inst.components.casket:SetOwner(owner)
 	end 	
+		
+	owner.casket = inst
 end 
 
 

@@ -669,11 +669,26 @@ end
 
 local function Casket_inventory_classified(inst)
 	local function SetCasket(inst, casket)
-		inst.casket = casket	
+		inst.casket = casket
+print('casket._numslots', casket._numslots)		
+		--inst:InitializeSlots(casket._numslots)
+	end
+	
+	local function GetCaskesketItem(inst)	
+		if inst._itemspreview ~= nil then			
+			for k, v in pairs(inst._itemspreview) do				
+				if v and v.prefab and v.prefab == 'casket' then
+					inst:SetCasket(v)
+					print('###SetCasket')
+				end
+			end
+		end		
+		
 	end
 
 	-- like the backpack container (overflow) I need a own one for the casket to return the container
 	local function GetOverflowContainerCasket(inst)
+		GetCaskesketItem(inst)
 		local item = inst.casket
 		return item ~= nil and item.replica.container or nil
 	end
@@ -682,18 +697,34 @@ local function Casket_inventory_classified(inst)
 		return item.replica.stackable ~= nil and item.replica.stackable:StackSize() or 1
 	end
 	
-	local function HasOverwrite(inst, prefab, amount)		
-		
-		if GLOBAL.ThePlayer.replica.inventory ~= nil then		
-			inst:SetCasket(GLOBAL.ThePlayer.replica.inventory:GetCasket())	
-		end
-		
+	local function dump(o)
+	   if type(o) == 'table' then
+		  local s = '{ '
+		  for k,v in pairs(o) do
+			if type(k) == 'table' then
+				print('Table', k)
+				--dump(k)
+			else
+				print('k', k)
+				print('v', v)
+				--dump(v)
+			end
+			 
+		  end
+	   end
+	end
+
+	local function Has(inst, prefab, amount)	
+
+		print('inst', inst)
 		
 		local count =
 			inst._activeitem ~= nil and
 			inst._activeitem.prefab == prefab and
 			Count(inst._activeitem) or 0
 
+print('inst._items', inst._items)
+print('inst._itemspreview', inst._itemspreview)
 		if inst._itemspreview ~= nil then
 			for i, v in ipairs(inst._items) do
 				local item = inst._itemspreview[i]
@@ -701,7 +732,7 @@ local function Casket_inventory_classified(inst)
 					count = count + Count(item)
 				end
 			end
-		else
+		elseif inst._items ~= nil then
 			for i, v in ipairs(inst._items) do
 				local item = v:value()
 				if item ~= nil and item ~= inst._activeitem and item.prefab == prefab then
@@ -709,23 +740,26 @@ local function Casket_inventory_classified(inst)
 				end
 			end
 		end
-
 		local overflow = inst:GetOverflowContainer(inst)
+print('overflow', overflow)
+dump(overflow)
 		if overflow ~= nil then
 			local overflowhas, overflowcount = overflow:Has(prefab, amount)
 			count = count + overflowcount
 		end
 		
 		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+print('overflowCasket', overflowCasket)
+dump(overflowCasket)
 		if overflowCasket ~= nil then
-			local overflowhas, overflowcount = overflowCasket:Has(prefab, amount)
+			local overflowhas, overflowcount = Has(overflowCasket, prefab, amount)
 			count = count + overflowcount
 		end
 
 		return count >= amount, count
 	end
 	
-	local function HasItemWithTagOverwrite(inst, tag, amount)
+	local function HasItemWithTag(inst, tag, amount)
 		local count =
 			inst._activeitem ~= nil and
 			inst._activeitem:HasTag(tag) and
@@ -762,7 +796,7 @@ local function Casket_inventory_classified(inst)
 		return count >= amount, count
 	end
 	
-	local function ReceiveItemOverwrite(inst, item, count)
+	local function ReceiveItem(inst, item, count)
 		if IsBusy(inst) then
 			return
 		end
@@ -773,6 +807,8 @@ local function Casket_inventory_classified(inst)
 		local overflowCasket = inst:GetOverflowContainerCasket(inst)
 		overflowCasket = overflowCasket and overflowCasket.classified or nil
 				
+		print("overflowCasket")		
+		print(overflowCasket)		
 		if overflow ~= nil and overflow:IsBusy() then
 			return
 		end
@@ -881,52 +917,53 @@ local function Casket_inventory_classified(inst)
 
 	
 	if not GLOBAL.TheWorld.ismastersim then	
+	print('### global overwrites')
 		inst.SetCasket = SetCasket
 		inst.GetOverflowContainerCasket = GetOverflowContainerCasket
-		inst.Has = HasOverwrite
-		inst.HasItemWithTag = HasItemWithTagOverwrite
-		inst.ReceiveItem = ReceiveItemOverwrite		
+		inst.Has = Has
+		inst.HasItemWithTag = HasItemWithTag
+		inst.ReceiveItem = ReceiveItem
 	end
 end
 
 AddComponentPostInit("inventory", Casket_inventory)
 
---AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
+AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
 
--- local InventoryReplica = require 'components/inventory_replica'
--- function InventoryReplica:SetCasket(casket)
-	-- self.casket = casket		
--- end
+local InventoryReplica = require 'components/inventory_replica'
+function InventoryReplica:SetCasket(casket)
+	self.casket = casket		
+end
 
--- function InventoryReplica:GetCasket()
-	-- return self.casket
--- end
+function InventoryReplica:GetCasket()
+	return self.casket
+end
 
--- function InventoryReplica:GetOverflowContainerCasket(prefab, amount)
-	-- if self.inst.components.inventory ~= nil then
-		-- return self.inst.components.inventory:GetOverflowContainerCasket()
-	-- else
-		-- return self.classified ~= nil and self.classified:GetOverflowContainerCasket() or nil
-	-- end
--- end
+function InventoryReplica:GetOverflowContainerCasket(prefab, amount)
+	if self.inst.components.inventory ~= nil then
+		return self.inst.components.inventory:GetOverflowContainerCasket()
+	else
+		return self.classified ~= nil and self.classified:GetOverflowContainerCasket() or nil
+	end
+end
 
--- function InventoryReplica:Has(prefab, amount)
-    -- if self.inst.components.inventory ~= nil then
-        -- return self.inst.components.inventory:Has(prefab, amount)
-    -- elseif self.classified ~= nil then
-        -- return self.classified:Has(prefab, amount)
-    -- else
-        -- return amount <= 0, 0
-    -- end
--- end
+function InventoryReplica:Has(prefab, amount)
+    if self.inst.components.inventory ~= nil then
+        return self.inst.components.inventory:Has(prefab, amount)
+    elseif self.classified ~= nil then
+        return self.classified:Has(prefab, amount)
+    else
+        return amount <= 0, 0
+    end
+end
 
--- function InventoryReplica:HasItemWithTag(tag, amount)
-    -- if self.inst.components.inventory ~= nil then
-        -- return self.inst.components.inventory:HasItemWithTag(tag, amount)
-    -- elseif self.classified ~= nil then
-        -- return self.classified:HasItemWithTag(tag, amount)
-    -- else
-        -- return amount <= 0, 0
-    -- end
--- end
+function InventoryReplica:HasItemWithTag(tag, amount)
+    if self.inst.components.inventory ~= nil then
+        return self.inst.components.inventory:HasItemWithTag(tag, amount)
+    elseif self.classified ~= nil then
+        return self.classified:HasItemWithTag(tag, amount)
+    else
+        return amount <= 0, 0
+    end
+end
 
