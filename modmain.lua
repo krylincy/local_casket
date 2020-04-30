@@ -71,6 +71,22 @@ local function Casket_inventory(inst)
 	local function SetCasket(self, casket)
 		self.casket = casket	
 	end
+	
+	local function tryconsume(self, v, amount)
+		if v.components.stackable == nil then
+			self:RemoveItem(v):Remove()
+			return 1
+		elseif v.components.stackable.stacksize > amount then
+			v.components.stackable:SetStackSize(v.components.stackable.stacksize - amount)
+			return amount
+		else
+			amount = v.components.stackable.stacksize
+			self:RemoveItem(v, true):Remove()
+			return amount
+		end
+		--shouldn't be possible?
+		return 0
+	end
 
 	-- like the backpack container (overflow) I need a own one for the casket to return the container
 	local function GetOverflowContainerCasket(self)
