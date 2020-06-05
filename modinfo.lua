@@ -18,8 +18,18 @@ priority=-1
 
 configuration_options = {
 	{
+		name = "modModeHost",
+		label = "Mod Style",
+        hover = "CAUTION: Use 'Inventory' only if you play alone as host without caves. For clients it has BUGS!",
+		options = {
+			{description = "Portable Chest", data = 0},
+			{description = "Inventory", data = 1}
+		},
+		default = 0,
+	},{
 		name = "machine",
 		label = "Crafting Tier",
+        hover = "Recipe configuration",
 		options = {
 			{description = "-", data = 0},
 			{description = "Prestihatitator", data = 2},
@@ -29,6 +39,7 @@ configuration_options = {
 	}, {
 		name = "purplegem",
 		label = "Recipe Purple Gem",
+        hover = "Recipe configuration",
 		options = {
 			{description = "-", data = 0},
 			{description = "1", data = 1},
@@ -44,6 +55,7 @@ configuration_options = {
 	}, {
 		name = "nightmarefuel",
 		label = "Recipe Nightmare Fuel",
+        hover = "Recipe configuration",
 		options = {
 			{description = "-", data = 0},
 			{description = "1", data = 1},
@@ -59,6 +71,7 @@ configuration_options = {
 	}, {
 		name = "livinglog",
 		label = "Recipe Living Log",
+        hover = "Recipe configuration",
 		options = {
 			{description = "-", data = 0},
 			{description = "1", data = 1},
@@ -74,6 +87,7 @@ configuration_options = {
 	}, {
 		name = "goldnugget",
 		label = "Recipe Gold Nugget",
+        hover = "Recipe configuration",
 		options = {
 			{description = "-", data = 0},
 			{description = "1", data = 1},

@@ -142,15 +142,23 @@ local function fn(Sim)
 		return inst
 	end	
 
-	inst:AddTag("chest") -- add to work with "craft from chest" mod
-	inst:AddTag("noautopickup")
+	
+	inst:AddTag("noautopickup") -- for my own other mod to not auto pickup this item with the orange amulet
+	
 	inst:AddComponent("inventoryitem")
 	inst.components.inventoryitem.atlasname = "images/inventoryimages/casket.xml"
     inst.components.inventoryitem.imagename = "casket"	
-	inst.components.inventoryitem:SetOnDroppedFn(onDropped)
-	inst.components.inventoryitem:SetOnPutInInventoryFn(onPickup)
 	
-	inst:AddComponent("casket")
+	if TUNING.CASKETHOST then
+		-- add functions to the casket is host only is playing
+		inst:AddComponent("casket")
+		
+		inst.components.inventoryitem:SetOnDroppedFn(onDropped)
+		inst.components.inventoryitem:SetOnPutInInventoryFn(onPickup)
+	else
+		inst:AddTag("chest") -- add to work with "craft from chest" mod
+	end		
+	
 	
 	inst:AddComponent("container")
 	inst.components.container:WidgetSetup("casket",containerparams.casket)
