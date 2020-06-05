@@ -65,6 +65,7 @@ end
 casket = Recipe("casket", ingredient_casket, RECIPETABS.MAGIC, tier, nil, 1)
 casket.atlas = "images/inventoryimages/casket.xml"
 
+AddReplicableComponent("casket")
 
 local function Casket_inventory(inst)
 
@@ -701,6 +702,13 @@ print('casket._numslots', casket._numslots)
 		end		
 		
 	end
+	
+	GetEquippedItem = inst.GetEquippedItem
+	
+	local function GetOverflowContainer(inst)
+		local item = GetEquippedItem(inst, GLOBAL.EQUIPSLOTS.BODY)
+		return item ~= nil and item.replica.container or nil
+	end
 
 	-- like the backpack container (overflow) I need a own one for the casket to return the container
 	local function GetOverflowContainerCasket(inst)
@@ -756,7 +764,7 @@ print('inst._itemspreview', inst._itemspreview)
 				end
 			end
 		end
-		local overflow = inst:GetOverflowContainer(inst)
+		local overflow = GetOverflowContainer(inst)
 print('overflow', overflow)
 dump(overflow)
 		if overflow ~= nil then
@@ -764,7 +772,7 @@ dump(overflow)
 			count = count + overflowcount
 		end
 		
-		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+		local overflowCasket = GetOverflowContainerCasket(inst)
 print('overflowCasket', overflowCasket)
 dump(overflowCasket)
 		if overflowCasket ~= nil then
@@ -797,13 +805,13 @@ dump(overflowCasket)
 			end
 		end
 
-		local overflow = inst:GetOverflowContainer(inst)
+		local overflow = GetOverflowContainer(inst)
 		if overflow ~= nil then
 			local overflowhas, overflowcount = overflow:HasItemWithTag(tag, amount)
 			count = count + overflowcount
 		end
 		
-		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+		local overflowCasket = GetOverflowContainerCasket(inst)
 		if overflowCasket ~= nil then
 			local overflowhas, overflowcount = overflowCasket:HasItemWithTag(tag, amount)
 			count = count + overflowcount
@@ -817,10 +825,10 @@ dump(overflowCasket)
 			return
 		end
 		
-		local overflow = inst:GetOverflowContainer(inst)
+		local overflow = GetOverflowContainer(inst)
 		overflow = overflow and overflow.classified or nil
 		
-		local overflowCasket = inst:GetOverflowContainerCasket(inst)
+		local overflowCasket = GetOverflowContainerCasket(inst)
 		overflowCasket = overflowCasket and overflowCasket.classified or nil
 				
 		print("overflowCasket")		
@@ -944,7 +952,7 @@ end
 
 AddComponentPostInit("inventory", Casket_inventory)
 
-AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
+--AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
 
 local InventoryReplica = require 'components/inventory_replica'
 function InventoryReplica:SetCasket(casket)

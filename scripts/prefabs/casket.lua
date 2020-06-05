@@ -129,9 +129,11 @@ local function fn(Sim)
 
 	inst.MiniMapEntity:SetIcon("casket.tex")
 		
-	MakeInventoryFloatable(inst, "idle", "idle")	
+	MakeInventoryFloatable(inst, "idle", "idle")		
 	
-	inst.entity:SetPristine()
+	
+	inst:AddTag("chest") -- add to work with "craft from chest" mod
+	inst:AddTag("noautopickup")
 
 	if not TheWorld.ismastersim then
 		inst.OnEntityReplicated = function(inst) 
@@ -141,6 +143,8 @@ local function fn(Sim)
 		
 		return inst
 	end	
+	
+	inst.entity:SetPristine()
 
 	inst:AddTag("chest") -- add to work with "craft from chest" mod
 	inst:AddTag("noautopickup")
