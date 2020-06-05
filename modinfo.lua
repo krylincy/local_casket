@@ -2,7 +2,7 @@ name = "Casket"
 version = "1.0"
 author = "krylincy"
 
-description = "A small casket for your pocket. \n Version: "..version
+description = "A small casket for your pocket. \n Version: "..version.."\n\nIf you play alone with no caves ( = as host) then you can change the 'Mod Style' configuration to 'Inventory'. In this case, the casket will extend your inventory, you can craft items from your casket and items you pickup will automatically stack in your casket - like a backback.\n\nIf you play with others or caves ( = as client) then you need to keep the 'Mod Style' configuration 'Portable Chest'. In this case, the casket works only like a portable chest. Items will not go into the casket if you pick them up and you can not craft from your casket."
 forumthread = ""
 
 api_version = 10
