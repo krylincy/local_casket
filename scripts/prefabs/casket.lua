@@ -129,7 +129,7 @@ local function fn(Sim)
 
 	inst.MiniMapEntity:SetIcon("casket.tex")
 		
-	MakeInventoryFloatable(inst, "idle", "idle")	
+	MakeInventoryFloatable(inst, "small", 0.2)	
 	
 	inst.entity:SetPristine()
 
