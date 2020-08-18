@@ -685,6 +685,23 @@ local function Casket_inventory(inst)
 end
 
 local function Casket_inventory_classified(inst)
+	local function dump(o)
+		if type(o) == 'table' then
+		   local s = '{ '
+		   for k,v in pairs(o) do
+			 if type(k) == 'table' then
+				 print('Table', k)
+				 --dump(k)
+			 else
+				 print('k', k)
+				 print('v', v)
+				 --dump(v)
+			 end
+			  
+		   end
+		end
+	 end
+
 	local function SetCasket(inst, casket)
 		inst.casket = casket
 print('casket._numslots', casket._numslots)		
@@ -692,20 +709,34 @@ print('casket._numslots', casket._numslots)
 	end
 	
 	local function GetCaskesketItem(inst)	
+		print("### GetCaskesketItem", inst)
+		dump(inst)
+		print("---> ", inst.casket)
 		if inst._itemspreview ~= nil then			
 			for k, v in pairs(inst._itemspreview) do				
 				if v and v.prefab and v.prefab == 'casket' then
 					inst:SetCasket(v)
-					print('###SetCasket')
+					print('### SetCasket')
 				end
 			end
 		end		
 		
 	end
+		
+	local function GetEquippedItem(inst, eslot)
+		print("### GetEquippedItem", inst)
+
+		if inst._equipspreview ~= nil then
+			return inst._equipspreview[eslot]
+		end
 	
-	GetEquippedItem = inst.GetEquippedItem
+		return inst._equips and inst._equips[eslot] ~= nil and inst._equips[eslot]:value() or nil
+	end
 	
 	local function GetOverflowContainer(inst)
+		print('### GetOverflowContainer', inst)
+		--print(dump(inst))
+
 		local item = GetEquippedItem(inst, GLOBAL.EQUIPSLOTS.BODY)
 		return item ~= nil and item.replica.container or nil
 	end
@@ -714,6 +745,10 @@ print('casket._numslots', casket._numslots)
 	local function GetOverflowContainerCasket(inst)
 		GetCaskesketItem(inst)
 		local item = inst.casket
+
+		print("### GetOverflowContainerCasket", inst)
+		print(item)
+		print(item and item.replica.container)
 		return item ~= nil and item.replica.container or nil
 	end
 	
@@ -721,25 +756,9 @@ print('casket._numslots', casket._numslots)
 		return item.replica.stackable ~= nil and item.replica.stackable:StackSize() or 1
 	end
 	
-	local function dump(o)
-	   if type(o) == 'table' then
-		  local s = '{ '
-		  for k,v in pairs(o) do
-			if type(k) == 'table' then
-				print('Table', k)
-				--dump(k)
-			else
-				print('k', k)
-				print('v', v)
-				--dump(v)
-			end
-			 
-		  end
-	   end
-	end
-
 	local function Has(inst, prefab, amount)	
 
+		print('### Has', prefab)
 		print('inst', inst)
 		
 		local count =
@@ -766,20 +785,22 @@ print('inst._itemspreview', inst._itemspreview)
 		end
 		local overflow = GetOverflowContainer(inst)
 print('overflow', overflow)
-dump(overflow)
+--dump(overflow)
 		if overflow ~= nil then
-			local overflowhas, overflowcount = overflow:Has(prefab, amount)
+			print('### HAS recursion overflow')
+			local overflowhas, overflowcount = Has(overflow, prefab, amount)
 			count = count + overflowcount
 		end
 		
 		local overflowCasket = GetOverflowContainerCasket(inst)
 print('overflowCasket', overflowCasket)
-dump(overflowCasket)
+--dump(overflowCasket)
 		if overflowCasket ~= nil then
+			print('### HAS recursion overflowCasket')
 			local overflowhas, overflowcount = Has(overflowCasket, prefab, amount)
 			count = count + overflowcount
 		end
-
+		print('-------------------------------- HAS count ', count)
 		return count >= amount, count
 	end
 	
@@ -940,23 +961,25 @@ dump(overflowCasket)
 	end
 
 	
-	if not GLOBAL.TheWorld.ismastersim then	
+	--if not GLOBAL.TheWorld.ismastersim then	
 	print('### global overwrites')
 		inst.SetCasket = SetCasket
 		inst.GetOverflowContainerCasket = GetOverflowContainerCasket
+		inst.GetEquippedItem = GetEquippedItem
 		inst.Has = Has
 		inst.HasItemWithTag = HasItemWithTag
 		inst.ReceiveItem = ReceiveItem
-	end
+	--end
 end
 
 AddComponentPostInit("inventory", Casket_inventory)
 
---AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
+AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
+
 
 local InventoryReplica = require 'components/inventory_replica'
 function InventoryReplica:SetCasket(casket)
-	self.casket = casket		
+	self.casket = casket
 end
 
 function InventoryReplica:GetCasket()

@@ -25,6 +25,7 @@ end
 
 local function onPickup(inst, owner) 
 	-- set the owner for the casket to check later, if there is one in inventory
+	print('### onPickup')
     if owner.components ~= nil and owner.components.inventory ~= nil then
 		owner.components.inventory:SetCasket(inst)	
 	end 
@@ -39,6 +40,7 @@ end
 
 local function onDropped(inst) 
 	-- remove the binding to the casket, else items would still get into it while not in inventory
+	print('### onDropped')
 	local casket_owner =  inst.components.casket.owner
 	if casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
 		casket_owner.components.inventory:SetCasket(nil)
@@ -77,7 +79,6 @@ for z = 0, 2 do
 	end
 end
 
-local containers = require "containers"
 local containerparams = {}
 containerparams.casket = {
     widget =
@@ -87,30 +88,33 @@ containerparams.casket = {
 		bgatlas = "images/casket-ui.xml",
 		bgimage = "casket-ui.tex",
     },
-	issidewidget = false,
+	issidewidget = true,
     type = "casket",
 }
 
+local containers = require "containers"
+-- this prop is the max value of itemslots in a container. we need to add the bigger size (120) from the casket
 containers.MAXITEMSLOTS = math.max(containers.MAXITEMSLOTS, containerparams.casket.widget.slotpos ~= nil and #containerparams.casket.widget.slotpos or 0)
 
-local oldWidgetsetupFunction = containers.widgetsetup
+--local oldWidgetsetupFunction = containers.widgetsetup
 
 ---------------------------------------------------------------
 	
-containers.widgetsetup = function (container, prefab, data)	
-	if prefab == "casket" then
-		local t = containerparams.casket or data or params[prefab or container.inst.prefab]
-		if t ~= nil then
-			for k, v in pairs(t) do
-				container[k] = v
-			end
-			container:SetNumSlots(container.widget.slotpos ~= nil and #container.widget.slotpos or 0)
-		end
+-- containers.widgetsetup = function (container, prefab, data)	
+-- 	if prefab == "casket" then
+
+-- 		local t = containerparams.casket or data or params[prefab or container.inst.prefab]
+-- 		if t ~= nil then
+-- 			for k, v in pairs(t) do
+-- 				container[k] = v
+-- 			end
+-- 			container:SetNumSlots(container.widget.slotpos ~= nil and #container.widget.slotpos or 0)
+-- 		end	
 	
-	else
-		oldWidgetsetupFunction(container, prefab, data)
-	end	
-end
+-- 	else
+-- 		oldWidgetsetupFunction(container, prefab, data)
+-- 	end	
+-- end
 
 local function fn(Sim)	
     local inst = CreateEntity()
