@@ -1,5 +1,6 @@
 require = GLOBAL.require
 require "class"
+local containers = require "containers"
 
 --GLOBAL.CHEATS_ENABLED = true
 --GLOBAL.require( 'debugkeys' )
@@ -30,6 +31,7 @@ RECIPETABS = GLOBAL.RECIPETABS
 Recipe = GLOBAL.Recipe
 Ingredient = GLOBAL.Ingredient
 TECH = GLOBAL.TECH
+net_entity = GLOBAL.net_entity
 
 local machine = GetModConfigData("machine")
 local purplegem = GetModConfigData("purplegem")
@@ -67,10 +69,32 @@ casket.atlas = "images/inventoryimages/casket.xml"
 
 AddReplicableComponent("casket")
 
+function dump(o)
+	if type(o) == 'table' then
+	   local s = '{ '
+	   for k,v in pairs(o) do
+		 if type(k) == 'table' then
+			 print('Table', k)
+			 --dump(k)
+		 else
+			 print('k', k)
+			 print('v', v)
+			 --dump(v)
+		 end
+		  
+	   end
+	end
+ end
+
 local function Casket_inventory(inst)
 
-	local function SetCasket(self, casket)
+	local function SetCasket(self, casket, owner)
 		self.casket = casket	
+		self.inst.replica.inventory:_SetCasket(casket, owner)
+	end
+
+	local function GetCasket(self, casket)
+		return self.casket or (self.inst.replica and self.inst.replica.inventory:_GetCasket()) or nil
 	end
 	
 	local function tryconsume(self, v, amount)
@@ -685,46 +709,27 @@ local function Casket_inventory(inst)
 end
 
 local function Casket_inventory_classified(inst)
-	local function dump(o)
-		if type(o) == 'table' then
-		   local s = '{ '
-		   for k,v in pairs(o) do
-			 if type(k) == 'table' then
-				 print('Table', k)
-				 --dump(k)
-			 else
-				 print('k', k)
-				 print('v', v)
-				 --dump(v)
-			 end
-			  
-		   end
-		end
-	 end
-
 	local function SetCasket(inst, casket)
+		print("### SetCasket classified", inst, casket)
 		inst.casket = casket
-print('casket._numslots', casket._numslots)		
-		--inst:InitializeSlots(casket._numslots)
+		inst._casket:set(casket)
+		print(inst.casket)
 	end
 	
-	local function GetCaskesketItem(inst)	
-		print("### GetCaskesketItem", inst)
-		dump(inst)
-		print("---> ", inst.casket)
-		if inst._itemspreview ~= nil then			
-			for k, v in pairs(inst._itemspreview) do				
-				if v and v.prefab and v.prefab == 'casket' then
-					inst:SetCasket(v)
-					print('### SetCasket')
-				end
-			end
-		end		
-		
+	local function GetCasket(inst)	
+		--print("### GetCasket", inst)
+		--dump(inst)
+		if inst._casket then
+			print("---> inst._casket:value()", inst._casket:value())
+			--dump(inst._casket:value())
+			return inst._casket:value()
+		else
+			return nil
+		end
 	end
 		
 	local function GetEquippedItem(inst, eslot)
-		print("### GetEquippedItem", inst)
+		--print("### GetEquippedItem", inst)
 
 		if inst._equipspreview ~= nil then
 			return inst._equipspreview[eslot]
@@ -743,13 +748,15 @@ print('casket._numslots', casket._numslots)
 
 	-- like the backpack container (overflow) I need a own one for the casket to return the container
 	local function GetOverflowContainerCasket(inst)
-		GetCaskesketItem(inst)
-		local item = inst.casket
-
 		print("### GetOverflowContainerCasket", inst)
-		print(item)
-		print(item and item.replica.container)
-		return item ~= nil and item.replica.container or nil
+		local item = GetCasket(inst)
+		
+		--print("GetOverflowContainerCasket item", item)
+		--print("GetOverflowContainerCasket item container", item and item.replica and item.replica.container)
+		if item ~= nil and item.replica and item.replica.container then
+			--dump(item.replica.container)
+		end
+		return item ~= nil and item.replica and item.replica.container or nil
 	end
 	
 	local function Count(item)
@@ -758,16 +765,16 @@ print('casket._numslots', casket._numslots)
 	
 	local function Has(inst, prefab, amount)	
 
-		print('### Has', prefab)
-		print('inst', inst)
+		print('### --------------------------------------------> Has prefab: ', prefab)
+		print('check with inst:', inst)
+		dump(inst)
 		
 		local count =
 			inst._activeitem ~= nil and
 			inst._activeitem.prefab == prefab and
 			Count(inst._activeitem) or 0
 
-print('inst._items', inst._items)
-print('inst._itemspreview', inst._itemspreview)
+
 		if inst._itemspreview ~= nil then
 			for i, v in ipairs(inst._items) do
 				local item = inst._itemspreview[i]
@@ -775,7 +782,7 @@ print('inst._itemspreview', inst._itemspreview)
 					count = count + Count(item)
 				end
 			end
-		elseif inst._items ~= nil then
+		else
 			for i, v in ipairs(inst._items) do
 				local item = v:value()
 				if item ~= nil and item ~= inst._activeitem and item.prefab == prefab then
@@ -784,7 +791,7 @@ print('inst._itemspreview', inst._itemspreview)
 			end
 		end
 		local overflow = GetOverflowContainer(inst)
-print('overflow', overflow)
+print('GetOverflowContainer overflow', overflow)
 --dump(overflow)
 		if overflow ~= nil then
 			print('### HAS recursion overflow')
@@ -793,7 +800,7 @@ print('overflow', overflow)
 		end
 		
 		local overflowCasket = GetOverflowContainerCasket(inst)
-print('overflowCasket', overflowCasket)
+print('GetOverflowContainerCasket overflowCasket', overflowCasket)
 --dump(overflowCasket)
 		if overflowCasket ~= nil then
 			print('### HAS recursion overflowCasket')
@@ -842,7 +849,7 @@ print('overflowCasket', overflowCasket)
 	end
 	
 	local function ReceiveItem(inst, item, count)
-		if IsBusy(inst) then
+		if inst.IsBusy(inst) then
 			return
 		end
 		
@@ -960,16 +967,30 @@ print('overflowCasket', overflowCasket)
 		end
 	end
 
+	local function OnCasketDirty()
+	end
+
 	
-	--if not GLOBAL.TheWorld.ismastersim then	
+	
 	print('### global overwrites')
 		inst.SetCasket = SetCasket
+		inst.GetCasket = GetCasket
+		inst._casket = net_entity(inst.GUID, "inventory._casket", "casketdirty")
+		
+	
+	if not GLOBAL.TheWorld.ismastersim then	
 		inst.GetOverflowContainerCasket = GetOverflowContainerCasket
 		inst.GetEquippedItem = GetEquippedItem
 		inst.Has = Has
 		inst.HasItemWithTag = HasItemWithTag
 		inst.ReceiveItem = ReceiveItem
-	--end
+
+		inst:ListenForEvent("casketdirty", function(a, b, c)
+			print("### casketdirty")
+			print("inst._casket", inst._casket)
+			print("inst._casket:value()", inst._casket:value())
+		end)
+	end
 end
 
 AddComponentPostInit("inventory", Casket_inventory)
@@ -978,8 +999,28 @@ AddPrefabPostInit("inventory_classified", Casket_inventory_classified)
 
 
 local InventoryReplica = require 'components/inventory_replica'
-function InventoryReplica:SetCasket(casket)
+
+function InventoryReplica:_SetCasket(casket, owner)
+	print('### replica _SetCasket')
+	
 	self.casket = casket
+
+	if self.classified ~= nil then
+		--print('### replica _SetCasket classified')
+		--print(self.prefab)
+		--dump(self.prefab)
+		--print('------------------')
+		--print(self.classified)
+		--dump(self.classified)
+		self.classified.SetCasket(self.classified, casket)
+		--print("self.classified.GetCasket(self.classified)", self.classified.GetCasket(self.classified))
+	end
+end
+
+
+function InventoryReplica:_GetCasket()
+	print('### replica _GetCasket')	
+	return self.casket or nil
 end
 
 function InventoryReplica:GetCasket()
@@ -1014,3 +1055,47 @@ function InventoryReplica:HasItemWithTag(tag, amount)
     end
 end
 
+local containers = require("containers")
+
+local function container_classified(inst)
+	print("### container_classified", inst)
+
+	dump(inst)
+	print("------")
+	print("#inst._items", #inst._items)
+	if inst._items ~= nil then
+		dump(inst._items)
+	end
+	
+	print("containers.MAXITEMSLOTS", containers.MAXITEMSLOTS)
+
+	if(#inst._items < containers.MAXITEMSLOTS) then
+		for i = #inst._items+1, containers.MAXITEMSLOTS do
+			table.insert(inst._items, net_entity(inst.GUID, "inventory._items["..tostring(i).."]", "items["..tostring(i).."]dirty"))
+		end
+	end
+
+	dump(inst._items)
+
+	local function InitializeSlots(inst, numslots)
+		--Can't re-initialize slots after RegisterNetListeners
+		print('### InitializeSlots', inst, numslots)
+	
+		local curslots = #inst._items
+		if numslots > curslots then
+			for i = curslots + 1, numslots do
+				table.insert(inst._items, table.remove(inst._itemspool, 1))
+			end
+		elseif numslots < curslots then
+			for i = curslots, numslots + 1, -1 do
+				table.insert(inst._itemspool, 1, table.remove(inst._items))
+			end
+		end
+	end
+
+
+	inst.InitializeSlots = InitializeSlots
+end
+
+
+AddPrefabPostInit("container_classified", container_classified)
