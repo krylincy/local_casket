@@ -710,21 +710,85 @@ end
 
 local function Casket_inventory_classified(inst)
 	local function SetCasket(inst, casket)
-		print("### SetCasket classified", inst, casket)
+		--print("### SetCasket classified", inst, casket)
 		inst.casket = casket
 		inst._casket:set(casket)
-		print(inst.casket)
+		--print(inst.casket)
 	end
 	
 	local function GetCasket(inst)	
 		--print("### GetCasket", inst)
 		--dump(inst)
 		if inst._casket then
-			print("---> inst._casket:value()", inst._casket:value())
+			--print("---> inst._casket:value()", inst._casket:value())
 			--dump(inst._casket:value())
 			return inst._casket:value()
 		else
 			return nil
+		end
+	end
+
+	local function SlotItem(item, slot)
+		return item ~= nil and slot ~= nil and { item = item, slot = slot } or nil
+	end
+	
+	local function SlotEquip(item, eslot)
+		return item ~= nil and eslot ~= nil and  { item = item, eslot = eslot } or nil
+	end
+	
+	
+	local function PushItemGet(inst, data, ignoresound)
+		if data ~= nil then
+			if inst._itemspreview == nil then
+				inst._itemspreview = inst:GetItems()
+			end
+			inst._itemspreview[data.slot] = data.item
+			if inst._parent ~= nil then
+				if not ignoresound then
+					inst._parent:PushEvent("gotnewitem", data)
+				end
+				inst._parent:PushEvent("itemget", data)
+			end
+			QueueRefresh(inst, TIMEOUT)
+		end
+	end
+	
+	local function PushStackSize(inst, item, stacksize, animatestacksize, activestacksize, animateactivestacksize, selfonly, sounddata)
+		if item ~= nil and item.replica.stackable ~= nil then
+			local oldstacksize = item.replica.stackable:StackSize()
+			local data =
+			{
+				stacksize = stacksize,
+				animatestacksize = animatestacksize,
+				activestacksize = activestacksize,
+				animateactivestacksize = animateactivestacksize,
+				activecontainer = selfonly and inst._parent or nil,
+			}
+			if (stacksize ~= nil and stacksize ~= oldstacksize) or
+				(activestacksize ~= nil and activestacksize ~= oldstacksize) then
+				if inst._itemspreview == nil then
+					for i, v in ipairs(inst._items) do
+						if v:value() == item then
+							inst._itemspreview = inst:GetItems()
+							break
+						end
+					end
+				end
+				if inst._equipspreview == nil then
+					for k, v in pairs(inst._equips) do
+						if v:value() == item then
+							inst._equipspreview = inst:GetEquips()
+						end
+					end
+				end
+				QueueRefresh(inst, TIMEOUT)
+			end
+			if sounddata ~= nil and inst._parent ~= nil then
+				--This is for moving items between containers
+				--Normally stack size previews have no sound
+				inst._parent:PushEvent("gotnewitem", sounddata)
+			end
+			item:PushEvent("stacksizepreview", data)
 		end
 	end
 		
@@ -739,24 +803,23 @@ local function Casket_inventory_classified(inst)
 	end
 	
 	local function GetOverflowContainer(inst)
-		print('### GetOverflowContainer', inst)
-		--print(dump(inst))
+		-- print('### GetOverflowContainer', inst)
 
 		local item = GetEquippedItem(inst, GLOBAL.EQUIPSLOTS.BODY)
-		return item ~= nil and item.replica.container or nil
+		return item ~= nil and item.replica and item.replica.container and item.replica.container.classified or nil
 	end
 
 	-- like the backpack container (overflow) I need a own one for the casket to return the container
 	local function GetOverflowContainerCasket(inst)
-		print("### GetOverflowContainerCasket", inst)
+		--print("### GetOverflowContainerCasket", inst)
 		local item = GetCasket(inst)
 		
 		--print("GetOverflowContainerCasket item", item)
 		--print("GetOverflowContainerCasket item container", item and item.replica and item.replica.container)
-		if item ~= nil and item.replica and item.replica.container then
+		if item ~= nil and item.replica and item.replica and item.replica.container then
 			--dump(item.replica.container)
 		end
-		return item ~= nil and item.replica and item.replica.container or nil
+		return item ~= nil and item.replica and item.replica.container and item.replica.container.classified or nil
 	end
 	
 	local function Count(item)
@@ -766,8 +829,8 @@ local function Casket_inventory_classified(inst)
 	local function Has(inst, prefab, amount)	
 
 		print('### --------------------------------------------> Has prefab: ', prefab)
-		print('check with inst:', inst)
-		dump(inst)
+		--print('check with inst:', inst)
+		--dump(inst)
 		
 		local count =
 			inst._activeitem ~= nil and
@@ -791,7 +854,7 @@ local function Casket_inventory_classified(inst)
 			end
 		end
 		local overflow = GetOverflowContainer(inst)
-print('GetOverflowContainer overflow', overflow)
+--print('GetOverflowContainer overflow', overflow)
 --dump(overflow)
 		if overflow ~= nil then
 			print('### HAS recursion overflow')
@@ -800,7 +863,7 @@ print('GetOverflowContainer overflow', overflow)
 		end
 		
 		local overflowCasket = GetOverflowContainerCasket(inst)
-print('GetOverflowContainerCasket overflowCasket', overflowCasket)
+--print('GetOverflowContainerCasket overflowCasket', overflowCasket)
 --dump(overflowCasket)
 		if overflowCasket ~= nil then
 			print('### HAS recursion overflowCasket')
@@ -859,8 +922,8 @@ print('GetOverflowContainerCasket overflowCasket', overflowCasket)
 		local overflowCasket = GetOverflowContainerCasket(inst)
 		overflowCasket = overflowCasket and overflowCasket.classified or nil
 				
-		print("overflowCasket")		
-		print(overflowCasket)		
+		--print("overflowCasket")		
+		--print(overflowCasket)		
 		if overflow ~= nil and overflow:IsBusy() then
 			return
 		end
@@ -1060,14 +1123,11 @@ local containers = require("containers")
 local function container_classified(inst)
 	print("### container_classified", inst)
 
-	dump(inst)
-	print("------")
-	print("#inst._items", #inst._items)
 	if inst._items ~= nil then
-		dump(inst._items)
+		--dump(inst._items)
 	end
 	
-	print("containers.MAXITEMSLOTS", containers.MAXITEMSLOTS)
+	--print("containers.MAXITEMSLOTS", containers.MAXITEMSLOTS)
 
 	if(#inst._items < containers.MAXITEMSLOTS) then
 		for i = #inst._items+1, containers.MAXITEMSLOTS do
@@ -1075,7 +1135,7 @@ local function container_classified(inst)
 		end
 	end
 
-	dump(inst._items)
+	--dump(inst._items)
 
 	local function InitializeSlots(inst, numslots)
 		--Can't re-initialize slots after RegisterNetListeners
@@ -1098,4 +1158,4 @@ local function container_classified(inst)
 end
 
 
-AddPrefabPostInit("container_classified", container_classified)
+--AddPrefabPostInit("container_classified", container_classified)
