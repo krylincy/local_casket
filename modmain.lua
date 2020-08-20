@@ -506,6 +506,10 @@ if GLOBAL.TUNING.CASKETHOST then
 			if overflow ~= nil then
 				overflow:ConsumeByName(item, amount)
 			end
+
+			if amount <= 0 then
+				return
+			end
 					
 			local overflowCasket = self:GetOverflowContainerCasket()
 			if overflowCasket ~= nil then
