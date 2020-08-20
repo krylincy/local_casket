@@ -27,11 +27,14 @@ GLOBAL.STRINGS.NAMES.CASKET = "Casket"
 GLOBAL.STRINGS.CHARACTERS.GENERIC.DESCRIBE.CASKET = "With this small thing I feel so big."
 GLOBAL.STRINGS.RECIPE_DESC.CASKET = "A small casket for your pocket."
 
-RECIPETABS = GLOBAL.RECIPETABS
-Recipe = GLOBAL.Recipe
-Ingredient = GLOBAL.Ingredient
-TECH = GLOBAL.TECH
-net_entity = GLOBAL.net_entity
+local RECIPETABS = GLOBAL.RECIPETABS
+local Recipe = GLOBAL.Recipe
+local Ingredient = GLOBAL.Ingredient
+local TECH = GLOBAL.TECH
+local net_entity = GLOBAL.net_entity
+local ThePlayer = GLOBAL.ThePlayer
+local SendRPCToServer = GLOBAL.SendRPCToServer
+local RPC = GLOBAL.RPC
 
 local machine = GetModConfigData("machine")
 local purplegem = GetModConfigData("purplegem")
@@ -708,7 +711,28 @@ local function Casket_inventory(inst)
 	inst.GiveItem = GiveItemOverwrite
 end
 
-local function Casket_inventory_classified(inst)
+local function Casket_inventory_classified(inst)	
+	local TIMEOUT = 2
+
+	local function Refresh(inst)
+		inst._refreshtask = nil
+		inst._busy = false
+		inst._activeitem = inst._active:value()
+		inst._returningitem = nil
+		inst._itemspreview = nil
+		inst._equipspreview = nil
+		if inst._parent ~= nil then
+			inst._parent:PushEvent("refreshinventory")
+		end
+	end
+
+	local function QueueRefresh(inst, delay)
+		if inst._refreshtask == nil then
+			inst._refreshtask = inst:DoTaskInTime(delay, Refresh)
+			inst._busy = true
+		end
+	end
+
 	local function SetCasket(inst, casket)
 		--print("### SetCasket classified", inst, casket)
 		inst.casket = casket
@@ -744,6 +768,7 @@ local function Casket_inventory_classified(inst)
 			end
 			inst._itemspreview[data.slot] = data.item
 			if inst._parent ~= nil then
+				print('### PushItemGet ignoresound', ignoresound)
 				if not ignoresound then
 					inst._parent:PushEvent("gotnewitem", data)
 				end
@@ -828,7 +853,7 @@ local function Casket_inventory_classified(inst)
 	
 	local function Has(inst, prefab, amount)	
 
-		print('### --------------------------------------------> Has prefab: ', prefab)
+		--print('### --------------------------------------------> Has prefab: ', prefab)
 		--print('check with inst:', inst)
 		--dump(inst)
 		
@@ -857,7 +882,7 @@ local function Casket_inventory_classified(inst)
 --print('GetOverflowContainer overflow', overflow)
 --dump(overflow)
 		if overflow ~= nil then
-			print('### HAS recursion overflow')
+			--print('### HAS recursion overflow')
 			local overflowhas, overflowcount = Has(overflow, prefab, amount)
 			count = count + overflowcount
 		end
@@ -866,11 +891,11 @@ local function Casket_inventory_classified(inst)
 --print('GetOverflowContainerCasket overflowCasket', overflowCasket)
 --dump(overflowCasket)
 		if overflowCasket ~= nil then
-			print('### HAS recursion overflowCasket')
+			--print('### HAS recursion overflowCasket')
 			local overflowhas, overflowcount = Has(overflowCasket, prefab, amount)
 			count = count + overflowcount
 		end
-		print('-------------------------------- HAS count ', count)
+		--print('-------------------------------- HAS count ', count)
 		return count >= amount, count
 	end
 	
@@ -1029,11 +1054,6 @@ local function Casket_inventory_classified(inst)
 			end
 		end
 	end
-
-	local function OnCasketDirty()
-	end
-
-	
 	
 	print('### global overwrites')
 		inst.SetCasket = SetCasket
@@ -1122,40 +1142,395 @@ local containers = require("containers")
 
 local function container_classified(inst)
 	print("### container_classified", inst)
+	local TIMEOUT = 2
 
-	if inst._items ~= nil then
-		--dump(inst._items)
-	end
-	
-	--print("containers.MAXITEMSLOTS", containers.MAXITEMSLOTS)
-
-	if(#inst._items < containers.MAXITEMSLOTS) then
-		for i = #inst._items+1, containers.MAXITEMSLOTS do
-			table.insert(inst._items, net_entity(inst.GUID, "inventory._items["..tostring(i).."]", "items["..tostring(i).."]dirty"))
-		end
+	local function IsBusy(inst)
+		return inst._busy or inst._parent == nil
 	end
 
-	--dump(inst._items)
-
-	local function InitializeSlots(inst, numslots)
-		--Can't re-initialize slots after RegisterNetListeners
-		print('### InitializeSlots', inst, numslots)
-	
-		local curslots = #inst._items
-		if numslots > curslots then
-			for i = curslots + 1, numslots do
-				table.insert(inst._items, table.remove(inst._itemspool, 1))
-			end
-		elseif numslots < curslots then
-			for i = curslots, numslots + 1, -1 do
-				table.insert(inst._itemspool, 1, table.remove(inst._items))
+	local function RefreshCrafting(inst)
+		local player = ThePlayer
+		if player ~= nil and player.replica.inventory ~= nil then
+			local overflow = player.replica.inventory:GetOverflowContainer()			
+			local overflowCasket = inventory ~= nil and inventory:GetOverflowContainerCasket() or nil
+			if (overflow ~= nil and overflow.inst == inst._parent) or (overflowCasket ~= nil and overflowCasket.inst == inst._parent)  then
+				player:PushEvent("refreshcrafting")
 			end
 		end
 	end
+	
+	local function Refresh(inst)
+		inst._refreshtask = nil
+		inst._busy = false
+		inst._itemspreview = nil
+		if inst._parent ~= nil then
+			inst._parent:PushEvent("refresh")
+			RefreshCrafting(inst)
+		end
+	end
 
+	local function QueueRefresh(inst, delay)
+		if inst._refreshtask == nil then
+			inst._refreshtask = inst:DoTaskInTime(delay, Refresh)
+			inst._busy = true
+			RefreshCrafting(inst)
+		end
+	end
 
-	inst.InitializeSlots = InitializeSlots
+	local function SlotItem(item, slot)
+		return item ~= nil and slot ~= nil and { item = item, slot = slot } or nil
+	end
+	
+	local function PushItemGet(inst, data, ignoresound)
+		if data ~= nil then
+			if inst._parent ~= nil then
+				if not ignoresound and
+					inst._parent.replica.inventoryitem ~= nil and
+					inst._parent.replica.inventoryitem:IsHeldBy(ThePlayer) then
+					ThePlayer:PushEvent("gotnewitem", data)
+				end
+				inst._parent:PushEvent("itemget", data)
+			end
+			if inst._itemspreview == nil then
+				inst._itemspreview = inst:GetItems()
+			end
+			inst._itemspreview[data.slot] = data.item
+			QueueRefresh(inst, TIMEOUT)
+		end
+	end
+	
+	local function PushItemLose(inst, data)
+		if data ~= nil then
+			if inst._parent ~= nil then
+				inst._parent:PushEvent("itemlose", data)
+			end
+			if inst._itemspreview == nil then
+				inst._itemspreview = inst:GetItems()
+			end
+			inst._itemspreview[data.slot] = nil
+			QueueRefresh(inst, TIMEOUT)
+		end
+	end
+
+	local function QueryActiveItem()
+		local player = ThePlayer
+		local inventory = player ~= nil and player.replica.inventory ~= nil and player.replica.inventory.classified or nil
+		return inventory, inventory ~= nil and inventory:GetActiveItem() or nil, inventory == nil or inventory:IsBusy()
+	end
+
+	local function PushStackSize(inst, inventory, item, stacksize, animatestacksize, activestacksize, animateactivestacksize, selfonly, sounddata)
+		if item ~= nil and item.replica.stackable ~= nil then
+			if sounddata ~= nil then
+				local player = ThePlayer
+				local inventory = player ~= nil and player.replica.inventory ~= nil and player.replica.inventory.classified or nil
+				local overflow = inventory ~= nil and inventory:GetOverflowContainer() or nil
+				local overflowCasket = inventory ~= nil and inventory:GetOverflowContainerCasket() or nil
+				print('### PushStackSize',inst )
+				print('overflowCasket ', overflowCasket)
+				if (overflow ~= nil and overflow.classified == inst) or (overflowCasket ~= nil and overflowCasket.classified == inst) then
+					ThePlayer:PushEvent("gotnewitem", sounddata)
+				end
+			end
+			local oldstacksize = item.replica.stackable:StackSize()
+			item:PushEvent("stacksizepreview",
+			{
+				stacksize = stacksize,
+				animatestacksize = animatestacksize,
+				activestacksize = activestacksize,
+				animateactivestacksize = animateactivestacksize,
+				activecontainer = selfonly and inst._parent or nil,
+			})
+			if (stacksize ~= nil and stacksize ~= oldstacksize) or
+				(activestacksize ~= nil and activestacksize ~= oldstacksize) then
+				if inst._itemspreview == nil then
+					for i, v in ipairs(inst._items) do
+						if v:value() == item then
+							inst._itemspreview = inst:GetItems()
+							break
+						end
+					end
+				end
+				QueueRefresh(inst, TIMEOUT)
+				if inventory ~= nil then
+					inventory:QueueRefresh(TIMEOUT)
+				end
+			end
+		end
+	end
+
+	local function ReturnActiveItemToSlot(inst, slot)
+		--inventory_classified:ReturnActiveItem will call PushNewActiveItem and SendRPCToServer
+		if not IsBusy(inst) then
+			local inventory, active_item, busy = QueryActiveItem()
+			if not busy and active_item ~= nil then
+				local item = inst:GetItemInSlot(slot)
+				if item == nil then
+					local giveitem = SlotItem(active_item, slot)
+					PushItemGet(inst, giveitem, true)
+				elseif item.replica.stackable ~= nil and item.prefab == active_item.prefab and item.AnimState:GetSkinBuild() == active_item.AnimState:GetSkinBuild() then --item.skinname == active_item.skinname (this does not work on clients, so we're going to use the AnimState hack instead)
+					local stacksize = item.replica.stackable:StackSize() + active_item.replica.stackable:StackSize()
+					local maxsize = item.replica.stackable:MaxSize()
+					PushStackSize(inst, nil, item, math.min(stacksize, maxsize), true)
+				end
+			end
+		end
+	end
+
+	local function PutOneOfActiveItemInSlot(inst, slot)
+		if not IsBusy(inst) then
+			local inventory, active_item, busy = QueryActiveItem()
+			if not busy and active_item ~= nil then
+				local giveitem = SlotItem(active_item, slot)
+				PushItemGet(inst, giveitem, true)
+				PushStackSize(inst, inventory, active_item, 1, false, active_item.replica.stackable:StackSize() - 1, true)
+				SendRPCToServer(RPC.PutOneOfActiveItemInSlot, slot, inst._parent)
+			end
+		end
+	end
+
+	local function TakeActiveItemFromHalfOfSlot(inst, slot)
+		if not IsBusy(inst) then
+			local inventory, active_item, busy = QueryActiveItem()
+			if not busy and inventory ~= nil and active_item == nil then
+				local item = inst:GetItemInSlot(slot)
+				if item ~= nil then
+					local takeitem = SlotItem(item, slot)
+					inventory:PushNewActiveItem(takeitem, inst, slot)
+					local stacksize = item.replica.stackable:StackSize()
+					local halfstacksize = math.floor(stacksize / 2)
+					PushStackSize(inst, inventory, item, stacksize - halfstacksize, true, halfstacksize, false)
+					SendRPCToServer(RPC.TakeActiveItemFromHalfOfSlot, slot, inst._parent)
+				end
+			end
+		end
+	end
+
+	local function AddOneOfActiveItemToSlot(inst, slot)
+		if not IsBusy(inst) then
+			local inventory, active_item, busy = QueryActiveItem()
+			if not busy and active_item ~= nil then
+				local item = inst:GetItemInSlot(slot)
+				if item ~= nil and item.prefab == active_item.prefab and item.AnimState:GetSkinBuild() == active_item.AnimState:GetSkinBuild() then --item.skinname == active_item.skinname (this does not work on clients, so we're going to use the AnimState hack instead)
+					PushStackSize(inst, nil, item, item.replica.stackable:StackSize() + 1, true)
+					PushStackSize(inst, inventory, active_item, nil, nil, active_item.replica.stackable:StackSize() - 1, true)
+					SendRPCToServer(RPC.AddOneOfActiveItemToSlot, slot, inst._parent)
+				end
+			end
+		end
+	end
+
+	local function AddAllOfActiveItemToSlot(inst, slot)
+		if not IsBusy(inst) then
+			local inventory, active_item, busy = QueryActiveItem()
+			if not busy and active_item ~= nil then
+				local item = inst:GetItemInSlot(slot)
+				if item ~= nil and item.prefab == active_item.prefab and item.AnimState:GetSkinBuild() == active_item.AnimState:GetSkinBuild() then --item.skinname == active_item.skinname (this does not work on clients, so we're going to use the AnimState hack instead)
+					local stacksize = item.replica.stackable:StackSize() + active_item.replica.stackable:StackSize()
+					local maxsize = item.replica.stackable:MaxSize()
+					if stacksize <= maxsize then
+						inventory:PushNewActiveItem()
+						PushStackSize(inst, nil, item, stacksize, true)
+					else
+						PushStackSize(inst, nil, item, maxsize, true)
+						PushStackSize(inst, inventory, active_item, stacksize - maxsize, false)
+					end
+					SendRPCToServer(RPC.AddAllOfActiveItemToSlot, slot, inst._parent)
+				end
+			end
+		end
+	end
+
+	local function SwapOneOfActiveItemWithSlot(inst, slot)
+		if not IsBusy(inst) then
+			local inventory, active_item, busy = QueryActiveItem()
+			if not busy and active_item ~= nil then
+				local item = inst:GetItemInSlot(slot)
+				if item ~= nil then
+					local takeitem = SlotItem(item, slot)
+					PushItemLose(inst, takeitem)
+					local giveitem = SlotItem(active_item, slot)
+					PushItemGet(inst, giveitem, true)
+					PushStackSize(inst, inventory, active_item, 1, false, active_item.replica.stackable:StackSize() - 1, true)
+					inventory:ReceiveItem(takeitem)
+					SendRPCToServer(RPC.SwapOneOfActiveItemWithSlot, slot, inst._parent)
+				end
+			end
+		end
+	end
+
+	local function MoveItemFromAllOfSlot(inst, slot, container)
+		if not IsBusy(inst) then
+			local container_classified = container ~= nil and container.replica.inventory ~= nil and container.replica.inventory.classified or (container.replica.container ~= nil and container.replica.container.classified or nil)
+			if container_classified ~= nil and not container_classified:IsBusy() then
+				local item = inst:GetItemInSlot(slot)
+				if item ~= nil then
+					local remainder = nil
+					local player = ThePlayer
+					if player ~= nil and player.components.constructionbuilderuidata ~= nil and player.components.constructionbuilderuidata:GetContainer() == container then
+						local targetslot = player.components.constructionbuilderuidata:GetSlotForIngredient(item.prefab)
+						if targetslot ~= nil then
+							remainder = container_classified:ReceiveItem(item, nil, targetslot)
+						end
+					else
+						remainder = container_classified:ReceiveItem(item)
+					end
+					if remainder ~= nil then
+						if remainder > 0 then
+							PushStackSize(inst, nil, item, nil, nil, remainder, false, true)
+						else
+							local takeitem = SlotItem(item, slot)
+							PushItemLose(inst, takeitem)
+						end
+						SendRPCToServer(RPC.MoveItemFromAllOfSlot, slot, inst._parent, container.replica.container ~= nil and container or nil)
+					end
+				end
+			end
+		end
+	end
+
+	local function MoveItemFromHalfOfSlot(inst, slot, container)
+		if not IsBusy(inst) then
+			local container_classified = container ~= nil and container.replica.inventory ~= nil and container.replica.inventory.classified or (container.replica.container ~= nil and container.replica.container.classified or nil)
+			if container_classified ~= nil and not container_classified:IsBusy() then
+				local item = inst:GetItemInSlot(slot)
+				if item ~= nil then
+					local remainder = nil
+					local player = ThePlayer
+					if player ~= nil and player.components.constructionbuilderuidata ~= nil and player.components.constructionbuilderuidata:GetContainer() == container then
+						local targetslot = player.components.constructionbuilderuidata:GetSlotForIngredient(item.prefab)
+						if targetslot ~= nil then
+							remainder = container_classified:ReceiveItem(item, math.floor(item.replica.stackable:StackSize() / 2), targetslot)
+						end
+					else
+						remainder = container_classified:ReceiveItem(item, math.floor(item.replica.stackable:StackSize() / 2))
+					end
+					if remainder ~= nil then
+						if remainder > 0 then
+							PushStackSize(inst, nil, item, nil, nil, remainder, true, true)
+						else
+							local takeitem = SlotItem(item, slot)
+							PushItemLose(inst, takeitem)
+						end
+						SendRPCToServer(RPC.MoveItemFromHalfOfSlot, slot, inst._parent, container.replica.container ~= nil and container or nil)
+					end
+				end
+			end
+		end
+	end
+
+	local function ReceiveItem(inst, item, count, forceslot)
+		if not IsBusy(inst) and (forceslot == nil or (forceslot >= 1 and forceslot <= #inst._items)) then
+			local isstackable = item.replica.stackable ~= nil
+			local originalstacksize = isstackable and item.replica.stackable:StackSize() or 1
+			local container = inst._parent.replica.container
+			if forceslot == nil and container ~= nil then
+				forceslot = container:GetSpecificSlotForItem(item)
+			end
+			if not isstackable or container == nil or not container:AcceptsStacks() then
+				for i = forceslot or 1, forceslot or #inst._items do
+					if inst._items[i]:value() == nil then
+						local giveitem = SlotItem(item, i)
+						PushItemGet(inst, giveitem)
+						if originalstacksize > 1 then
+							PushStackSize(inst, nil, item, nil, nil, 1, false, true)
+							return originalstacksize - 1
+						else
+							return 0
+						end
+					end
+				end
+			else
+				local originalcount = count and math.min(count, originalstacksize) or originalstacksize
+				count = originalcount
+				local emptyslot = nil
+				for i = forceslot or 1, forceslot or #inst._items do
+					local slotitem = inst._items[i]:value()
+					if slotitem == nil then
+						if emptyslot == nil then
+							emptyslot = i
+						end
+					elseif slotitem.prefab == item.prefab and slotitem.AnimState:GetSkinBuild() == item.AnimState:GetSkinBuild() and --slotitem.skinname == item.skinname (this does not work on clients, so we're going to use the AnimState hack instead)
+						slotitem.replica.stackable ~= nil and
+						not slotitem.replica.stackable:IsFull() then
+						local stacksize = slotitem.replica.stackable:StackSize() + count
+						local maxsize = slotitem.replica.stackable:MaxSize()
+						if stacksize > maxsize then
+							count = math.max(stacksize - maxsize, 0)
+							stacksize = maxsize
+						else
+							count = 0
+						end
+						PushStackSize(inst, nil, slotitem, stacksize, true, nil, nil, nil, SlotItem(slotitem, i))
+						if count <= 0 then
+							break
+						end
+					end
+				end
+				if count > 0 and emptyslot ~= nil then
+					local giveitem = SlotItem(item, emptyslot)
+					PushItemGet(inst, giveitem)
+					if count ~= originalstacksize then
+						PushStackSize(inst, nil, item, nil, nil, count, false, true)
+					end
+					count = 0
+				end
+				if count ~= originalcount then
+					return originalstacksize - (originalcount - count)
+				end
+			end
+		end
+	end
+
+	local function ConsumeByName(inst, prefab, amount)
+		if amount <= 0 then
+			return
+		end
+	
+		for i, v in ipairs(inst._items) do
+			local item = v:value()
+			if item ~= nil and item.prefab == prefab then
+				local stacksize = item.replica.stackable ~= nil and item.replica.stackable:StackSize() or 1
+				if stacksize <= amount then
+					local takeitem = SlotItem(item, i)
+					PushItemLose(inst, takeitem)
+					if amount <= stacksize then
+						return
+					end
+					amount = amount - stacksize
+				else
+					PushStackSize(inst, nil, item, stacksize - amount, true)
+					return
+				end
+			end
+		end
+	end
+	
+	local function TakeActionItem(inst, item, slot)
+		if not IsBusy(inst) and inst:GetItemInSlot(slot) == item then
+			local takeitem = SlotItem(item, slot)
+			PushItemLose(inst, takeitem)
+		end
+	end
+
+	if not GLOBAL.TheWorld.ismastersim then
+		print('### container_classified overwrite')
+        --Client interface
+        inst.ReturnActiveItemToSlot = ReturnActiveItemToSlot
+        inst.PutOneOfActiveItemInSlot = PutOneOfActiveItemInSlot
+        inst.TakeActiveItemFromHalfOfSlot = TakeActiveItemFromHalfOfSlot
+        inst.AddOneOfActiveItemToSlot = AddOneOfActiveItemToSlot
+        inst.AddAllOfActiveItemToSlot = AddAllOfActiveItemToSlot
+		inst.SwapOneOfActiveItemWithSlot = SwapOneOfActiveItemWithSlot
+        inst.MoveItemFromAllOfSlot = MoveItemFromAllOfSlot
+        inst.MoveItemFromHalfOfSlot = MoveItemFromHalfOfSlot
+
+        --Exposed for inventory
+        inst.ReceiveItem = ReceiveItem
+        inst.ConsumeByName = ConsumeByName
+        inst.TakeActionItem = TakeActionItem
+        inst.IsBusy = IsBusy
+    end
 end
 
 
---AddPrefabPostInit("container_classified", container_classified)
+AddPrefabPostInit("container_classified", container_classified)
