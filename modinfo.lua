@@ -18,15 +18,6 @@ priority=-1
 
 configuration_options = {
 	{
-		name = "modModeHost",
-		label = "Mod Style",
-        hover = "CAUTION: Use 'Inventory' only if you play alone as host without caves. For clients it has BUGS!",
-		options = {
-			{description = "Portable Chest", data = 0},
-			{description = "Inventory", data = 1}
-		},
-		default = 0,
-	},{
 		name = "machine",
 		label = "Crafting Tier",
         hover = "Recipe configuration",
