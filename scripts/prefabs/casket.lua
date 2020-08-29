@@ -26,10 +26,6 @@ end
 local function onPickup(inst, owner) 
 	-- set the owner for the casket to check later, if there is one in inventory
 	print('### onPickup')
-	if inst.components.container ~= nil then
-		inst.components.container:Open(owner)
-	end
-
 	if owner.components ~= nil and owner.components.inventory ~= nil then
 		print('### onPickup set inventory')
 		owner.components.inventory:SetCasket(inst, owner)	
@@ -47,9 +43,6 @@ local function onDropped(inst)
 	-- remove the binding to the casket, else items would still get into it while not in inventory
 	print('### onDropped')
 	local casket_owner =  inst.components.casket.owner
-	if inst.components.container ~= nil then
-		inst.components.container:Close()
-	end
 	if casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
 		casket_owner.components.inventory:SetCasket(nil)
 	end 
@@ -92,11 +85,11 @@ containerparams.casket = {
     widget =
     {
         slotpos = slotpos,
-        pos = Vector3(-700, -30, 0),
+        pos = Vector3(0, -100, 0),
 		bgatlas = "images/casket-ui.xml",
 		bgimage = "casket-ui.tex",
     },
-	issidewidget = true,
+	issidewidget = false,
     type = "casket",
 }
 
