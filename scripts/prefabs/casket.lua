@@ -157,19 +157,12 @@ local function fn(Sim)
 	inst.components.inventoryitem.atlasname = "images/inventoryimages/casket.xml"
     inst.components.inventoryitem.imagename = "casket"	
 	
-	--print("#####")
-	--print(TUNING.CASKETHOST)
-	if TUNING.CASKETHOST == 1 then
-		--print("add casket functions")
-		-- add functions to the casket is host only is playing
-		inst:AddComponent("casket")
-		
-		inst.components.inventoryitem:SetOnDroppedFn(onDropped)
-		inst.components.inventoryitem:SetOnPutInInventoryFn(onPickup)
-	else
-		--print("add chest tag")
-		inst:AddTag("chest") -- add to work with "craft from chest" mod
-	end		
+
+	inst:AddComponent("casket")
+	
+	inst.components.inventoryitem:SetOnDroppedFn(onDropped)
+	inst.components.inventoryitem:SetOnPutInInventoryFn(onPickup)
+	
 	
 	
 	inst:AddComponent("container")
