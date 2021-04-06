@@ -40,7 +40,7 @@ end
 local function onDropped(inst) 
 	-- remove the binding to the casket, else items would still get into it while not in inventory
 	local casket_owner =  inst.components.casket.owner
-	if casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
+	if casket_owner ~= nil and casket_owner.components ~= nil and casket_owner.components.inventory ~= nil then
 		casket_owner.components.inventory:SetCasket(nil)
 	end 
 	
