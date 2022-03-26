@@ -28,7 +28,6 @@ GLOBAL.STRINGS.RECIPE_DESC.CASKET = "A small casket for your pocket."
 GLOBAL.TUNING.CASKETHOST = GetModConfigData("modModeHost")
 
 RECIPETABS = GLOBAL.RECIPETABS
-Recipe = GLOBAL.Recipe
 Ingredient = GLOBAL.Ingredient
 TECH = GLOBAL.TECH
 
@@ -63,8 +62,8 @@ if goldnugget > 0 then
 	table.insert(ingredient_casket, Ingredient("goldnugget", goldnugget))
 end
 
-casket = Recipe("casket", ingredient_casket, RECIPETABS.MAGIC, tier, nil, 1)
-casket.atlas = "images/inventoryimages/casket.xml"
+AddRecipe2("casket", ingredient_casket, tier, {atlas="images/inventoryimages/casket.xml"}, {"MAGIC", "CONTAINERS"})
+
 
 if GLOBAL.TUNING.CASKETHOST then
 
@@ -300,7 +299,7 @@ if GLOBAL.TUNING.CASKETHOST then
 			return acceptcount
 		end
 		
-		local function RemoveItemOverwrite(self, item, wholestack)
+		local function RemoveItemOverwrite(self, item, wholestack, checkallcontainers)
 			if item == nil then
 				return
 			end
@@ -347,16 +346,32 @@ if GLOBAL.TUNING.CASKETHOST then
 
 			local overflow = self:GetOverflowContainer()
 			local overflowItem =  overflow ~= nil and overflow:RemoveItem(item, wholestack) or item
-			
+			local overflowCasket = self:GetOverflowContainerCasket()
+
 			if overflowItem then
 				return overflowItem
-			else
-				local overflowCasket = self:GetOverflowContainerCasket()
+			end
+			if overflowCasket then				
 				return overflowCasket ~= nil and overflowCasket:RemoveItem(item, wholestack) or item
 			end
+
+			if checkallcontainers then
+		        local containers = self.opencontainers
+		        for container_inst in pairs(containers) do
+		            local container = container_inst.components.container or container_inst.components.inventory
+		            if container and container ~= overflow and not container.excludefromcrafting then
+		                local container_item = container:RemoveItem(item, wholestack)
+		                if container_item then
+		                    return container_item
+		                end
+		            end
+		        end
+		    end
+
+		    return item
 		end
 
-		local function HasOverwrite(self, item, amount)
+		local function HasOverwrite(self, item, amount, checkallcontainers)
 			local num_found = 0
 			for k, v in pairs(self.itemslots) do
 				if v and v.prefab == item then
@@ -388,7 +403,19 @@ if GLOBAL.TUNING.CASKETHOST then
 				num_found = num_found + overflow_found
 			end
 
-			return num_found >= amount, num_found
+			if checkallcontainers then
+		        local containers = self.opencontainers
+
+		        for container_inst in pairs(containers) do
+		            local container = container_inst.components.container or container_inst.components.inventory
+		            if container and container ~= overflow and not container.excludefromcrafting then
+		                local container_enough, container_found = container:Has(item, amount)
+		                num_found = num_found + container_found
+		            end
+		        end
+		    end
+
+		    return num_found >= amount, num_found
 		end
 			
 		local function HasItemWithTagOverwrite(self, tag, amount)
@@ -426,7 +453,7 @@ if GLOBAL.TUNING.CASKETHOST then
 			return num_found >= amount, num_found
 		end
 		
-		local function GetItemByNameOverwrite(self, item, amount) 
+		local function GetItemByNameOverwrite(self, item, amount, checkallcontainers) 
 			local total_num_found = 0
 			local items = {}
 
@@ -467,6 +494,7 @@ if GLOBAL.TUNING.CASKETHOST then
 				local overflow_items = overflow:GetItemByName(item, (amount - total_num_found))
 				for k,v in pairs(overflow_items) do
 					items[k] = v
+					total_num_found = total_num_found + v
 				end
 			end
 			
@@ -475,8 +503,27 @@ if GLOBAL.TUNING.CASKETHOST then
 				local overflow_items = overflowCasket:GetItemByName(item, (amount - total_num_found))
 				for k,v in pairs(overflow_items) do
 					items[k] = v
+					total_num_found = total_num_found + v
 				end
 			end
+
+			if checkallcontainers and total_num_found < amount then
+		        local containers = self.opencontainers
+
+		        for container_inst in pairs(containers) do
+		            local container = container_inst.components.container or container_inst.components.inventory
+		            if container and container ~= overflow and not container.excludefromcrafting then
+		                local container_items = container:GetItemByName(item, (amount - total_num_found))
+		                for k,v in pairs(container_items) do
+		                    items[k] = v
+		                    total_num_found = total_num_found + v
+		                end
+		            end
+		            if total_num_found >= amount then
+		                break
+		            end
+		        end
+		    end
 
 			return items
 		end
